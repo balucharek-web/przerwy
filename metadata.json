@@ -1,0 +1,6 @@
+{
+  "name": "Czas Przerwy",
+  "description": "Aplikacja do odbijania przerw w pracy z limitem 30 minut, widgetem na pulpit i alarmem 3 minuty przed końcem.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

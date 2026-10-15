@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Czas Przerwy</string>
+    <string name="widget_name">Czas Przerwy (Odbijanie)</string>
+    <string name="widget_description">Widget do natychmiastowego odbijania wejścia i wyjścia na przerwę oraz podglądu pozostałego czasu.</string>
+    <string name="status_working">W pracy</string>
+    <string name="status_on_break">Na przerwie</string>
+    <string name="start_break">Rozpocznij przerwę</string>
+    <string name="stop_break">Zakończ przerwę</string>
+    <string name="remaining_time">Pozostało</string>
+    <string name="used_time">Wykorzystano</string>
+    <string name="breaks_count">Liczba przerw</string>
+    <string name="alarm_3min_title">Uwaga! Kończy się przerwa</string>
+    <string name="alarm_3min_message">Zostały tylko 3 minuty z Twojego 30-minutowego limitu przerwy!</string>
+    <string name="alarm_over_title">Koniec przerwy!</string>
+    <string name="alarm_over_message">Wykorzystałeś cały 30-minutowy limit przerwy na dziś!</string>
+    <string name="dismiss_alarm">Wyłącz alarm</string>
+</resources>
