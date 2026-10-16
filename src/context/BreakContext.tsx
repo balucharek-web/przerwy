@@ -26,7 +26,7 @@ interface BreakContextType {
   todaySummary: DayBreakSummary;
   webhookLogs: WebhookLog[];
   startBreak: (note?: string) => Promise<void>;
-  stopBreak: (note?: string) => Promise<void>;
+  stopBreak: (note?: string, subtractMinutes?: number) => Promise<void>;
   deleteBreak: (id: string) => void;
   updateBreak: (id: string, updates: Partial<BreakRecord>) => void;
   addManualBreak: (record: { startTime: string; endTime: string; note?: string }) => void;
@@ -341,18 +341,32 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // STOP BREAK
-  const stopBreak = async (note?: string) => {
+  const stopBreak = async (note?: string, subtractMinutes?: number) => {
     if (!activeBreak) return;
 
     const now = new Date();
     const startMs = new Date(activeBreak.startTime).getTime();
-    const duration = Math.max(1, Math.round((now.getTime() - startMs) / 1000));
+
+    // Calculate adjusted end time if subtractMinutes is provided
+    let endMs = now.getTime();
+    if (subtractMinutes && subtractMinutes > 0) {
+      endMs = Math.max(startMs + 1000, endMs - subtractMinutes * 60 * 1000);
+    }
+    const duration = Math.max(1, Math.round((endMs - startMs) / 1000));
+    const endDate = new Date(endMs);
+
+    let finalNote = note !== undefined ? note : activeBreak.note;
+    if (subtractMinutes && subtractMinutes > 0 && !note) {
+      finalNote = activeBreak.note 
+        ? `${activeBreak.note} (korekta -${subtractMinutes} min)`
+        : `Korekta -${subtractMinutes} min`;
+    }
 
     const completed: BreakRecord = {
       ...activeBreak,
-      endTime: now.toISOString(),
+      endTime: endDate.toISOString(),
       durationSeconds: duration,
-      note: note !== undefined ? note : activeBreak.note,
+      note: finalNote,
     };
 
     setBreaks((prev) => [completed, ...prev]);

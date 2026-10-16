@@ -168,6 +168,31 @@ export const DedicatedWidgetView: React.FC<DedicatedWidgetViewProps> = ({
           </button>
         </div>
 
+        {/* Quick time adjustment when active */}
+        {isBreakActive && (
+          <div className="flex items-center justify-between gap-2 px-1 bg-slate-900/80 p-2 rounded-xl border border-slate-800/80">
+            <span className="text-[11px] text-slate-400 font-medium">Wróciłeś wcześniej?</span>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => stopBreak(undefined, 5)}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-semibold border border-slate-700 cursor-pointer active:scale-95 transition"
+                title="Zakończ przerwę i odejmij 5 minut"
+              >
+                -5 min
+              </button>
+              <button
+                type="button"
+                onClick={() => stopBreak(undefined, 10)}
+                className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[11px] font-semibold border border-slate-700 cursor-pointer active:scale-95 transition"
+                title="Zakończ przerwę i odejmij 10 minut"
+              >
+                -10 min
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Chat Webhook Status Feedback */}
         {settings.googleChatWebhookUrl ? (
           <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[10px] text-slate-400">

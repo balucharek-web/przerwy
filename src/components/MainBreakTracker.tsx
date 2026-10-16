@@ -12,7 +12,8 @@ import {
   MessageSquare, 
   Plus, 
   ChevronRight,
-  Sparkles
+  RotateCcw,
+  History
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel } from '../utils/dateUtils';
@@ -44,9 +45,17 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
 
   const [noteInput, setNoteInput] = useState('');
   const [showManualModal, setShowManualModal] = useState(false);
+  const [showCustomAdjustmentModal, setShowCustomAdjustmentModal] = useState(false);
+  const [customSubtractMinutes, setCustomSubtractMinutes] = useState(5);
   const [manualStartTime, setManualStartTime] = useState('');
   const [manualEndTime, setManualEndTime] = useState('');
   const [manualNote, setManualNote] = useState('');
+
+  const handleStopWithAdjustment = (minutes: number) => {
+    stopBreak(noteInput.trim() || undefined, minutes);
+    setNoteInput('');
+    setShowCustomAdjustmentModal(false);
+  };
 
   const isBreakActive = !!activeBreak;
   const { totalSeconds, allowanceSeconds, remainingSeconds, isOverLimit, breaks } = todaySummary;
@@ -248,13 +257,55 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
               <span>ROZPOCZNIJ PRZERWĘ (START)</span>
             </button>
           ) : (
-            <button
-              onClick={handleStop}
-              className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-lg font-black tracking-wide shadow-lg shadow-rose-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer animate-pulse"
-            >
-              <Square className="w-6 h-6 fill-white" />
-              <span>ZAKOŃCZ PRZERWĘ (STOP)</span>
-            </button>
+            <div className="flex flex-col gap-2 w-full">
+              <button
+                onClick={handleStop}
+                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-lg font-black tracking-wide shadow-lg shadow-rose-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer animate-pulse"
+              >
+                <Square className="w-6 h-6 fill-white" />
+                <span>ZAKOŃCZ PRZERWĘ (STOP)</span>
+              </button>
+
+              {/* Szybka korekta: Zapomniałem kliknąć Stop */}
+              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-1.5 shadow-md">
+                <div className="flex items-center justify-between px-1 text-[11px]">
+                  <span className="flex items-center gap-1 font-medium text-slate-300">
+                    <History className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Wróciłeś wcześniej? Korekta czasu:</span>
+                  </span>
+                  <span className="text-[10px] text-slate-500">Odejmij czas</span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleStopWithAdjustment(5)}
+                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                    title="Zakończ przerwę i odejmij 5 minut (wróciłem 5 min temu)"
+                  >
+                    <RotateCcw className="w-3 h-3 shrink-0" />
+                    <span>-5 min temu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleStopWithAdjustment(10)}
+                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                    title="Zakończ przerwę i odejmij 10 minut (wróciłem 10 min temu)"
+                  >
+                    <RotateCcw className="w-3 h-3 shrink-0" />
+                    <span>-10 min temu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomAdjustmentModal(true)}
+                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-slate-600 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                    title="Podaj inną liczbę minut do odjęcia"
+                  >
+                    <Clock className="w-3 h-3 shrink-0 text-slate-400" />
+                    <span>Inna...</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Note input when active or before starting */}
@@ -481,26 +532,95 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
         )}
       </div>
 
-      {/* Quick Widget Promo Banner */}
-      <div className="bg-gradient-to-r from-blue-950/40 via-slate-900 to-amber-950/30 border border-slate-800 rounded-2xl p-4 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-            <Sparkles className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-bold text-white">Widget na ekran główny telefon / desktop</div>
-            <div className="text-slate-400 text-[11px]">
-              Klikaj Start/Stop bez konieczności odpalania aplikacji!
+      {/* Custom Time Adjustment Modal ("Wróciłem X min temu") */}
+      {showCustomAdjustmentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-800 p-6 shadow-2xl relative text-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Korekta czasu przerwy</h3>
+                  <p className="text-[11px] text-slate-400">Zapomniałeś kliknąć Stop od razu?</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCustomAdjustmentModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                <div className="text-slate-400 text-[11px]">Czas na liczniku:</div>
+                <div className="text-xl font-mono font-bold text-white mt-0.5">
+                  {formatDuration(currentBreakSeconds)}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Wróciłem do pracy ile minut temu:
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="1"
+                    max={Math.max(1, Math.floor(currentBreakSeconds / 60) || 60)}
+                    value={customSubtractMinutes}
+                    onChange={(e) => setCustomSubtractMinutes(Math.max(1, Number(e.target.value)))}
+                    className="w-24 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-amber-500"
+                  />
+                  <span className="text-slate-300">minut temu</span>
+                </div>
+                <div className="flex gap-1.5 mt-2.5">
+                  {[2, 3, 5, 7, 10, 15].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setCustomSubtractMinutes(m)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-semibold transition cursor-pointer ${
+                        customSubtractMinutes === m
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      -{m}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200">
+                💡 Czas zakończenia zostanie cofnięty o <strong>{customSubtractMinutes} min</strong>.
+                Zapisana długość przerwy wyniesie ok. <strong>{formatDuration(Math.max(60, currentBreakSeconds - customSubtractMinutes * 60))}</strong>.
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCustomAdjustmentModal(false)}
+                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition cursor-pointer"
+                >
+                  Anuluj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleStopWithAdjustment(customSubtractMinutes)}
+                  className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold transition cursor-pointer shadow-md shadow-rose-600/30"
+                >
+                  Zakończ i cofnij o {customSubtractMinutes}m
+                </button>
+              </div>
             </div>
           </div>
         </div>
-        <button
-          onClick={onOpenWidgetGuide}
-          className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs font-semibold transition"
-        >
-          Sprawdź widget
-        </button>
-      </div>
+      )}
 
       {/* Manual Break Add Modal */}
       {showManualModal && (
