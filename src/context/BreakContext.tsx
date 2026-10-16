@@ -25,6 +25,7 @@ import {
   isVibrationSupported,
   isScreenLockedOrHidden,
 } from '../utils/vibrationService';
+import { requestScreenWakeLock, releaseScreenWakeLock } from '../utils/wakeLockService';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -73,6 +74,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   notificationBarControlsEnabled: true,
   notificationBarOnlyDuringBreak: true,
   includeNameInSimpleMessage: true,
+  keepScreenAwakeDuringBreak: false,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -198,11 +200,16 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (!activeBreak) {
       stopBackgroundKeepAlive();
+      releaseScreenWakeLock();
       return;
     }
 
     // Keep background audio active on mobile devices
     startBackgroundKeepAlive();
+
+    if (settings.keepScreenAwakeDuringBreak) {
+      requestScreenWakeLock();
+    }
 
     const updateTimer = () => {
       const startMs = new Date(activeBreak.startTime).getTime();
@@ -238,6 +245,9 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         updateTimer();
+        if (settings.keepScreenAwakeDuringBreak) {
+          requestScreenWakeLock();
+        }
       } else if (document.visibilityState === 'hidden' && activeBreak) {
         // Screen was just locked during an active break
         if (settings.vibrateEnabled !== false && settings.countdownVibrationEnabled !== false) {
@@ -281,6 +291,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        releaseScreenWakeLock();
         if (worker) {
           worker.postMessage('stop');
           worker.terminate();
@@ -294,10 +305,11 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fallbackInterval = setInterval(updateTimer, 1000);
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
+        releaseScreenWakeLock();
         clearInterval(fallbackInterval);
       };
     }
-  }, [activeBreak]);
+  }, [activeBreak, settings.keepScreenAwakeDuringBreak]);
 
   // Current day key based on resetHour
   const currentDayKey = useMemo(() => {
@@ -352,8 +364,10 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⚠️ Zbliża się koniec przerwy!', {
-          body: `Zostały tylko ${settings.warningMinutesBeforeEnd} minuty z Twojego dziennego limitu (${settings.dailyAllowanceMinutes} min).`,
+          body: `Zostały tylko ${settings.warningMinutesBeforeEnd} minuty z limitu (${settings.dailyAllowanceMinutes} min). Czas wracać!`,
           tag: 'break-warning',
+          vibrate: [400, 150, 400, 150, 600],
+          requireInteraction: true,
         });
       }
     }
@@ -370,8 +384,10 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⏰ Limit przerwy wykorzystany!', {
-          body: `Twój limit ${settings.dailyAllowanceMinutes} minut na dzisiaj właśnie się skończył.`,
+          body: `Twój limit ${settings.dailyAllowanceMinutes} minut na dzisiaj właśnie się skończył. Wracaj do pracy!`,
           tag: 'break-limit',
+          vibrate: [1000, 300, 1000, 300, 1500],
+          requireInteraction: true,
         });
       }
     }
@@ -397,6 +413,19 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     limitAlarmFiredRef.current = false;
     setActiveBreak(newBreak);
     playToggleFeedback(true, settings.alarmVolume ?? 80);
+
+    // Synchronously activate background audio within user click gesture
+    startBackgroundKeepAlive();
+
+    // Auto-request notifications if enabled and not yet decided
+    if (settings.browserNotificationsEnabled) {
+      requestNotificationPermission();
+    }
+
+    // Activate screen wake lock if enabled
+    if (settings.keepScreenAwakeDuringBreak) {
+      requestScreenWakeLock();
+    }
 
     // Save undo state
     if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
@@ -457,6 +486,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setBreaks((prev) => [completed, ...prev]);
     setActiveBreak(null);
+    releaseScreenWakeLock();
     clearSystemNotificationBar();
     stopBackgroundKeepAlive();
     playToggleFeedback(false, settings.alarmVolume ?? 80);

@@ -26,6 +26,7 @@ export interface UserSettings {
   includeNameInSimpleMessage?: boolean; // default false: adds "Imię: start" / "Imię: stop" for shared team webhooks
   notificationBarControlsEnabled?: boolean; // default true: shows start/stop notification bar controls
   notificationBarOnlyDuringBreak?: boolean; // default true: shows notification ONLY while break is active, disappears on stop
+  keepScreenAwakeDuringBreak?: boolean; // default false: keeps screen awake during break (Wake Lock API)
 }
 
 export interface WebhookLog {

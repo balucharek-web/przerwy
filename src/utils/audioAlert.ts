@@ -1,8 +1,8 @@
-// Web Audio API Synthesizer for reliable offline sounds without external asset dependencies
+// Web Audio API Synthesizer and Background Audio Keep-Alive for Mobile/Android/iOS Lock Screen
 
 let audioCtx: AudioContext | null = null;
 
-function getAudioContext(): AudioContext {
+export function getAudioContext(): AudioContext {
   if (!audioCtx) {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     audioCtx = new AudioContextClass();
@@ -21,26 +21,86 @@ function normalizeVolume(volume?: number): number {
 }
 
 let silentAudioEl: HTMLAudioElement | null = null;
-const SILENT_WAV_DATA_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+let silentAudioUrl: string | null = null;
+
+/**
+ * Creates a valid 4-second 8-bit mono PCM silent WAV audio Blob.
+ * Unlike a 0-sample empty base64 string, this generates a real media stream
+ * with duration=4.0s that mobile browsers (Chrome Android, Safari iOS)
+ * accept as active media playback, preventing tab throttling and enabling
+ * native lock-screen media controls (MediaSession API).
+ */
+function getSilentAudioUrl(): string {
+  if (silentAudioUrl) return silentAudioUrl;
+  try {
+    const sampleRate = 8000;
+    const numSamples = sampleRate * 4; // 4 seconds
+    const buffer = new ArrayBuffer(44 + numSamples);
+    const view = new DataView(buffer);
+
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    // RIFF identifier
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + numSamples, true);
+    writeString(8, 'WAVE');
+
+    // fmt subchunk
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // Subchunk1Size
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // Mono (1 channel)
+    view.setUint32(24, sampleRate, true); // Sample rate
+    view.setUint32(28, sampleRate, true); // Byte rate (8000 * 1 * 1)
+    view.setUint16(32, 1, true); // Block align
+    view.setUint16(34, 8, true); // Bits per sample (8-bit)
+
+    // data subchunk
+    writeString(36, 'data');
+    view.setUint32(40, numSamples, true);
+
+    // 8-bit PCM silence is 128 (0x80)
+    const samples = new Uint8Array(buffer, 44, numSamples);
+    samples.fill(128);
+
+    const blob = new Blob([buffer], { type: 'audio/wav' });
+    silentAudioUrl = URL.createObjectURL(blob);
+    return silentAudioUrl;
+  } catch {
+    // Fallback minimal URI
+    return 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+  }
+}
 
 /**
  * Starts silent looping audio to maintain background execution on Android / mobile browsers
- * so notifications and timers keep advancing even when the user switches to other apps.
+ * so notifications and timers keep advancing even when the user switches apps or locks screen.
  */
 export function startBackgroundKeepAlive() {
   if (typeof window === 'undefined') return;
   try {
     if (!silentAudioEl) {
-      silentAudioEl = new Audio(SILENT_WAV_DATA_URI);
+      silentAudioEl = new Audio();
+      silentAudioEl.src = getSilentAudioUrl();
       silentAudioEl.loop = true;
-      silentAudioEl.volume = 0.01;
+      silentAudioEl.volume = 0.05; // Audible enough to trigger media thread, inaudible to human ear (silence samples)
       silentAudioEl.setAttribute('playsinline', '');
       silentAudioEl.setAttribute('webkit-playsinline', '');
     }
+    
+    // Ensure src is set
+    if (!silentAudioEl.src) {
+      silentAudioEl.src = getSilentAudioUrl();
+    }
+
     const playPromise = silentAudioEl.play();
     if (playPromise !== undefined) {
-      playPromise.catch(() => {
-        // Autoplay may need user gesture, will retry on next user tap
+      playPromise.catch((err) => {
+        console.warn('Silent audio play blocked (needs user gesture):', err);
       });
     }
   } catch (e) {
@@ -81,6 +141,9 @@ export function playWarningAlarm(volume: number = 80) {
 
   try {
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
     const now = ctx.currentTime;
 
     const playTone = (freq: number, start: number, duration: number, type: OscillatorType = 'sine') => {
@@ -90,7 +153,7 @@ export function playWarningAlarm(volume: number = 80) {
       osc.type = type;
       osc.frequency.setValueAtTime(freq, start);
 
-      const targetGain = Math.max(0.001, 0.35 * vol);
+      const targetGain = Math.max(0.001, 0.45 * vol);
       gain.gain.setValueAtTime(0.001, start);
       gain.gain.exponentialRampToValueAtTime(targetGain, start + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
@@ -102,7 +165,7 @@ export function playWarningAlarm(volume: number = 80) {
       osc.stop(start + duration);
     };
 
-    // Sequence: 3 pairs of bell notes (880Hz -> 1046Hz)
+    // Sequence: 3 pairs of bell notes (784Hz -> 1046Hz -> 1174Hz)
     playTone(784, now + 0.0, 0.35, 'triangle'); // G5
     playTone(1046, now + 0.25, 0.45, 'sine');   // C6
 
@@ -114,10 +177,14 @@ export function playWarningAlarm(volume: number = 80) {
 
     // Vibrate device if supported
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate([200, 100, 200, 100, 400]);
+      try {
+        navigator.vibrate([250, 100, 250, 100, 450]);
+      } catch {
+        // Ignore
+      }
     }
   } catch (err) {
-    console.warn('Audio playback failed (browser autoplay restriction or unsupported):', err);
+    console.warn('Audio playback failed:', err);
   }
 }
 
@@ -130,18 +197,21 @@ export function playLimitReachedAlarm(volume: number = 80) {
 
   try {
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
     const now = ctx.currentTime;
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       const startTime = now + i * 0.28;
 
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(900, startTime);
+      osc.frequency.setValueAtTime(950, startTime);
       osc.frequency.exponentialRampToValueAtTime(450, startTime + 0.18);
 
-      const targetGain = Math.max(0.001, 0.3 * vol);
+      const targetGain = Math.max(0.001, 0.4 * vol);
       gain.gain.setValueAtTime(targetGain, startTime);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
 
@@ -153,7 +223,11 @@ export function playLimitReachedAlarm(volume: number = 80) {
     }
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      navigator.vibrate([400, 150, 400, 150, 600]);
+      try {
+        navigator.vibrate([400, 150, 400, 150, 800]);
+      } catch {
+        // Ignore
+      }
     }
   } catch (err) {
     console.warn('Audio playback failed:', err);
@@ -169,6 +243,9 @@ export function playToggleFeedback(isStart: boolean, volume: number = 80) {
 
   try {
     const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -182,7 +259,7 @@ export function playToggleFeedback(isStart: boolean, volume: number = 80) {
       osc.frequency.exponentialRampToValueAtTime(440, now + 0.15); // A4
     }
 
-    const targetGain = Math.max(0.001, 0.15 * vol);
+    const targetGain = Math.max(0.001, 0.2 * vol);
     gain.gain.setValueAtTime(targetGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
 
@@ -197,33 +274,61 @@ export function playToggleFeedback(isStart: boolean, volume: number = 80) {
 }
 
 /**
- * Request system notifications permission and send system notification
+ * Dispatches a system notification with vibration and sound.
+ * CRITICAL for Android: On Android Chrome, `new Notification(...)` throws
+ * "TypeError: Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead."
+ * This helper uses `serviceWorker.ready.showNotification` so vibrations and lock-screen
+ * notifications reliably show on Android and desktop.
  */
-export async function sendSystemNotification(title: string, options?: NotificationOptions) {
+export interface ExtendedNotificationOptions extends NotificationOptions {
+  vibrate?: number | number[];
+}
+
+export async function sendSystemNotification(title: string, options?: ExtendedNotificationOptions): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
 
-  if (Notification.permission === 'granted') {
-    new Notification(title, {
-      icon: '/pwa-192x192.png',
-      badge: '/icon.svg',
-      ...options,
-    });
-    return true;
-  }
-
-  if (Notification.permission !== 'denied') {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      new Notification(title, {
-        icon: '/pwa-192x192.png',
-        badge: '/icon.svg',
-        ...options,
-      });
-      return true;
+  // Check permission, request if default
+  let permission = Notification.permission;
+  if (permission === 'default') {
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      permission = Notification.permission;
     }
   }
 
-  return false;
+  if (permission !== 'granted') {
+    return false;
+  }
+
+  const notificationOptions: any = {
+    icon: './pwa-192x192.png',
+    badge: './icon.svg',
+    vibrate: [400, 150, 400, 150, 600],
+    ...options,
+  };
+
+  // 1. Try Service Worker showNotification (works on Android Chrome!)
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, notificationOptions as any);
+        return true;
+      }
+    } catch (swErr) {
+      console.warn('ServiceWorker showNotification failed, trying fallback:', swErr);
+    }
+  }
+
+  // 2. Fallback to standard window.Notification (works on desktop Safari/Firefox/Chrome)
+  try {
+    new Notification(title, notificationOptions);
+    return true;
+  } catch (notifErr) {
+    console.warn('Notification constructor failed:', notifErr);
+    return false;
+  }
 }

@@ -319,6 +319,31 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Lock screen & notification status */}
+              <div className="w-full mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-center">
+                {typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted' ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (typeof window !== 'undefined' && 'Notification' in window) {
+                        await Notification.requestPermission();
+                        // re-render by dispatching dummy state
+                        window.dispatchEvent(new Event('notification-permission-change'));
+                      }
+                    }}
+                    className="w-full py-1.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-amber-400 animate-bounce" />
+                    <span>Kliknij, aby włączyć dźwięki i wibracje po wygaszeniu ekranu</span>
+                  </button>
+                ) : (
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Licznik na ekranie blokady aktywny &bull; Dźwięk i wibracja w tle włączone</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

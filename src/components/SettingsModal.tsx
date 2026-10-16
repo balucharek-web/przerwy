@@ -61,6 +61,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [vibrateOnlyWhenScreenLocked, setVibrateOnlyWhenScreenLocked] = useState(settings.vibrateOnlyWhenScreenLocked ?? true);
   const [countdownVibrationIntervalMinutes, setCountdownVibrationIntervalMinutes] = useState(settings.countdownVibrationIntervalMinutes ?? 1);
 
+  const [keepScreenAwake, setKeepScreenAwake] = useState(settings.keepScreenAwakeDuringBreak ?? false);
+  const [testLockCountdown, setTestLockCountdown] = useState<number | null>(null);
+
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -84,6 +87,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       includeNameInSimpleMessage,
       notificationBarControlsEnabled: notificationBarControls,
       notificationBarOnlyDuringBreak,
+      keepScreenAwakeDuringBreak: keepScreenAwake,
     });
 
     setSaveSuccess(true);
@@ -430,31 +434,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </div>
 
-            {/* Test buttons for audio */}
-            <div className="flex items-center gap-2 pt-1">
+            {/* Wake Lock Setting */}
+            <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={keepScreenAwake}
+                  onChange={(e) => setKeepScreenAwake(e.target.checked)}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                />
+                <div>
+                  <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" /> Nie wygaszaj ekranu podczas trwania przerwy (Wake Lock)
+                  </span>
+                  <span className="text-slate-400 text-[11px] block mt-0.5">
+                    Zapobiega samoczynnemu wygaszaniu ekranu przez system telefonu, gdy trwa przerwa (przydatne, gdy telefon stoi w podstawce na biurku).
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {/* Test buttons for audio & lockscreen */}
+            <div className="space-y-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => testSoundAlarm('warning', alarmVolume)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 text-xs transition cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Testuj alarm 3 min</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => testSoundAlarm('final', alarmVolume)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 text-xs transition cursor-pointer"
+                >
+                  <Volume2 className="w-3.5 h-3.5" />
+                  <span>Testuj alarm 0 min</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRequestNotificationPermission}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 text-xs transition cursor-pointer"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Włącz powiadomienia</span>
+                </button>
+              </div>
+
+              {/* Delayed Lock Screen Test Button */}
               <button
                 type="button"
-                onClick={() => testSoundAlarm('warning', alarmVolume)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition"
+                onClick={async () => {
+                  await handleRequestNotificationPermission();
+                  let count = 5;
+                  setTestLockCountdown(count);
+                  const timer = setInterval(() => {
+                    count--;
+                    if (count > 0) {
+                      setTestLockCountdown(count);
+                    } else {
+                      clearInterval(timer);
+                      setTestLockCountdown(null);
+                      sendSystemNotification('🔔 Test alarmu na ekranie blokady!', {
+                        body: 'Dźwięk oraz wibracje działają poprawnie po wygaszeniu ekranu!',
+                        vibrate: [500, 200, 500, 200, 500],
+                        requireInteraction: true,
+                        tag: 'test-lock-alarm',
+                      });
+                      testSoundAlarm('warning', alarmVolume);
+                    }
+                  }, 1000);
+                }}
+                disabled={testLockCountdown !== null}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50"
               >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Testuj alarm 3 min</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => testSoundAlarm('final', alarmVolume)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 transition"
-              >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Testuj alarm 0 min</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleRequestNotificationPermission}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 transition"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>Włącz powiadomienia</span>
+                <Smartphone className="w-4 h-4 text-amber-400 animate-pulse" />
+                <span>
+                  {testLockCountdown !== null
+                    ? `ZABLOKUJ TERAZ EKRAN TELEFONU! Alarm za: ${testLockCountdown}s...`
+                    : '🔔 Przetestuj alarm w tle (za 5 sek) – zablokuj telefon na próbę'}
+                </span>
               </button>
             </div>
           </div>

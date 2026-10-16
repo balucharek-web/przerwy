@@ -30,9 +30,13 @@ export async function requestNotificationPermission(): Promise<boolean> {
   if (Notification.permission === 'granted') {
     return true;
   }
-  if (Notification.permission !== 'denied') {
-    const perm = await Notification.requestPermission();
-    return perm === 'granted';
+  if (Notification.permission === 'default') {
+    try {
+      const perm = await Notification.requestPermission();
+      return perm === 'granted';
+    } catch {
+      return false;
+    }
   }
   return false;
 }
@@ -40,7 +44,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 let lastNotificationUpdateMs = 0;
 let mediaSessionHandlersBound = false;
 
-function bindMediaSessionHandlers() {
+export function bindMediaSessionHandlers() {
   if (mediaSessionHandlersBound) return;
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
   try {
@@ -66,39 +70,47 @@ function bindMediaSessionHandlers() {
 }
 
 /**
- * Updates the persistent system notification bar with START / STOP action buttons
+ * Updates the lock screen media session widget and system notification bar
  */
 export async function updateSystemNotificationBar(state: NotificationControlState) {
   if (typeof window === 'undefined') return;
-  if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
 
-  // If controls are disabled, or if configured to only show during active break and no break is active
+  // 1. ALWAYS update Android/iOS Lock Screen MediaSession controls (works without notification permission!)
+  updateMediaSessionControls(state);
+
+  // 2. Check if persistent notification bar is enabled and break is active
   if (!state.enabled || (state.onlyDuringBreak !== false && !state.isBreakActive)) {
-    clearSystemNotificationBar();
+    clearNotificationOnly();
     return;
   }
 
-  // Throttle notification updates to at most once per 800ms
+  if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  // Throttle notification updates to at most once per 1000ms
   const now = Date.now();
-  if (state.isBreakActive && now - lastNotificationUpdateMs < 800) {
+  if (state.isBreakActive && now - lastNotificationUpdateMs < 1000) {
     return;
   }
   lastNotificationUpdateMs = now;
 
   try {
-    bindMediaSessionHandlers();
     const reg = await navigator.serviceWorker.ready;
     if (!reg || !reg.showNotification) return;
 
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
 
+    // Calculate estimated return time
+    const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
+    const returnTimeStr = `${String(returnDate.getHours()).padStart(2, '0')}:${String(returnDate.getMinutes()).padStart(2, '0')}`;
+
     // Prominent title with timer so it is immediately visible on Android lock screen
     const title = isBreakActive 
-      ? `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (zostało: ${formatDuration(remainingSeconds)})` 
+      ? `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (Zostało: ${formatDuration(remainingSeconds)})` 
       : `☕ PrzerwaPro • Pozostało: ${formatDuration(remainingSeconds)}`;
+    
     const body = isBreakActive
-      ? `Licznik bieżący: ${formatDuration(currentBreakSeconds)} | Pozostały limit: ${formatDuration(remainingSeconds)} / ${formatDuration(allowanceSeconds)}`
+      ? `Powrót do pracy: ${returnTimeStr} | Dzienny limit: ${formatDuration(allowanceSeconds)}`
       : `Pozostały limit: ${formatDuration(remainingSeconds)} / ${formatDuration(allowanceSeconds)}`;
 
     // Android notification action buttons
@@ -132,16 +144,29 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
         updatedAt: Date.now(),
       },
     } as any);
-
-    // Also update MediaSession API (for Android lockscreen controls)
-    updateMediaSessionControls(state);
   } catch (err) {
     // Ignore notification display errors
   }
 }
 
 /**
- * Closes the persistent notification bar
+ * Closes only the persistent notification
+ */
+async function clearNotificationOnly() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (reg && reg.getNotifications) {
+      const notifs = await reg.getNotifications({ tag: NOTIFICATION_TAG });
+      notifs.forEach((n) => n.close());
+    }
+  } catch (e) {
+    // Ignore
+  }
+}
+
+/**
+ * Closes both notification and lock screen controls
  */
 export async function clearSystemNotificationBar() {
   if (typeof window === 'undefined') return;
@@ -155,52 +180,51 @@ export async function clearSystemNotificationBar() {
     }
   }
 
-  if (!('serviceWorker' in navigator)) return;
-
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    if (reg && reg.getNotifications) {
-      const notifs = await reg.getNotifications({ tag: NOTIFICATION_TAG });
-      notifs.forEach((n) => n.close());
-    }
-  } catch (e) {
-    // Ignore
-  }
+  await clearNotificationOnly();
 }
 
 /**
- * Updates Android MediaSession on lockscreen
+ * Updates Android and iOS MediaSession on the phone Lock Screen
+ * This renders the native lock-screen player with current ticking time,
+ * remaining time, return time, and Pause/Stop buttons!
  */
-function updateMediaSessionControls(state: NotificationControlState) {
+export function updateMediaSessionControls(state: NotificationControlState) {
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
 
   try {
+    bindMediaSessionHandlers();
+
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
 
+    if (!isBreakActive) {
+      navigator.mediaSession.playbackState = 'none';
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+
+    const now = Date.now();
+    const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
+    const returnTimeStr = `${String(returnDate.getHours()).padStart(2, '0')}:${String(returnDate.getMinutes()).padStart(2, '0')}`;
+
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: isBreakActive 
-        ? `⏱️ ${formatDuration(currentBreakSeconds)} (Czas przerwy)` 
-        : '☕ Gotowość do przerwy',
-      artist: isBreakActive
-        ? `Pozostało dzisiaj: ${formatDuration(remainingSeconds)}`
-        : `Dzienny limit: ${formatDuration(allowanceSeconds)}`,
-      album: isBreakActive 
-        ? 'PrzerwaPro (Dotknij Stop aby zakończyć)' 
-        : 'PrzerwaPro (Dotknij Play aby zacząć)',
+      title: `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (Zostało: ${formatDuration(remainingSeconds)})`,
+      artist: `🔔 Powrót do pracy: ${returnTimeStr} • Limit: ${formatDuration(allowanceSeconds)}`,
+      album: 'PrzerwaPro (Naciśnij Pauza/Stop aby zakończyć)',
       artwork: [
         { src: './pwa-192x192.png', sizes: '192x192', type: 'image/png' },
         { src: './pwa-512x512.png', sizes: '512x512', type: 'image/png' },
       ],
     });
 
-    navigator.mediaSession.playbackState = isBreakActive ? 'playing' : 'paused';
+    navigator.mediaSession.playbackState = 'playing';
 
-    if ('setPositionState' in navigator.mediaSession && isBreakActive) {
+    if ('setPositionState' in navigator.mediaSession) {
       try {
+        const totalDuration = Math.max(allowanceSeconds, currentBreakSeconds + 1);
         navigator.mediaSession.setPositionState({
-          duration: Math.max(allowanceSeconds, currentBreakSeconds + 1),
+          duration: totalDuration,
           playbackRate: 1,
-          position: Math.min(allowanceSeconds, currentBreakSeconds),
+          position: Math.min(totalDuration, currentBreakSeconds),
         });
       } catch (e) {
         // Ignore
