@@ -16,6 +16,15 @@ import {
   getControlChannel, 
   requestNotificationPermission 
 } from '../utils/notificationControl';
+import {
+  triggerHaptic,
+  triggerScreenLockConfirmation,
+  triggerCountdownTick,
+  triggerWarningVibration,
+  triggerLimitReachedVibration,
+  isVibrationSupported,
+  isScreenLockedOrHidden,
+} from '../utils/vibrationService';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -34,27 +43,33 @@ interface BreakContextType {
   clearAllHistory: () => void;
   testWebhook: () => Promise<WebhookLog>;
   testSoundAlarm: (type: 'warning' | 'final', volume?: number) => void;
+  testVibration: (type?: 'tick' | 'warning' | 'lock') => boolean;
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
 }
 
+export const TEAM_SHARED_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAAA94ZyILs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=aoQFsSDKoYcofsyF4Cd1cynnTkNShzZDilpkNcJ4j2c';
+
 const DEFAULT_SETTINGS: UserSettings = {
   dailyAllowanceMinutes: 30,
   warningMinutesBeforeEnd: 3,
   resetHour: '00:00',
-  googleChatWebhookUrl: '',
+  googleChatWebhookUrl: TEAM_SHARED_WEBHOOK,
   googleChatUserName: 'Pracownik',
   soundAlertsEnabled: true,
   alarmVolume: 80,
   browserNotificationsEnabled: true,
   vibrateEnabled: true,
+  countdownVibrationEnabled: true,
+  vibrateOnlyWhenScreenLocked: true,
+  countdownVibrationIntervalMinutes: 1,
   simpleChatMessages: true,
   startMessageText: 'start',
   stopMessageText: 'stop',
   notificationBarControlsEnabled: true,
   notificationBarOnlyDuringBreak: true,
-  includeNameInSimpleMessage: false,
+  includeNameInSimpleMessage: true,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -69,7 +84,15 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (!parsed.googleChatWebhookUrl) {
+          parsed.googleChatWebhookUrl = TEAM_SHARED_WEBHOOK;
+          parsed.includeNameInSimpleMessage = true;
+        }
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -116,6 +139,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Flags to avoid multiple alarms in the same break session
   const warningAlarmFiredRef = useRef<boolean>(false);
   const limitAlarmFiredRef = useRef<boolean>(false);
+  const lastVibratedMinuteRef = useRef<number>(-1);
 
   // Save settings
   const updateSettings = (newSettings: Partial<UserSettings>) => {
@@ -135,10 +159,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     if (activeBreak) {
       localStorage.setItem(ACTIVE_BREAK_KEY, JSON.stringify(activeBreak));
+      lastVibratedMinuteRef.current = -1;
     } else {
       localStorage.removeItem(ACTIVE_BREAK_KEY);
       warningAlarmFiredRef.current = false;
       limitAlarmFiredRef.current = false;
+      lastVibratedMinuteRef.current = -1;
       setCurrentBreakSeconds(0);
     }
   }, [activeBreak]);
@@ -171,14 +197,40 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const nowMs = Date.now();
       const elapsed = Math.max(0, Math.floor((nowMs - startMs) / 1000));
       setCurrentBreakSeconds(elapsed);
+
+      // Pocket vibration during countdown:
+      // Vibrates periodically (e.g. every 1 or 5 min), but ONLY when screen is locked/hidden if configured
+      if (settings.vibrateEnabled !== false && settings.countdownVibrationEnabled !== false) {
+        const isLocked = isScreenLockedOrHidden();
+        const canVibrate = !settings.vibrateOnlyWhenScreenLocked || isLocked;
+        if (canVibrate) {
+          const elapsedMinutes = Math.floor(elapsed / 60);
+          const interval = Math.max(1, settings.countdownVibrationIntervalMinutes || 1);
+          if (
+            elapsedMinutes > 0 &&
+            elapsedMinutes % interval === 0 &&
+            elapsed % 60 === 0 &&
+            lastVibratedMinuteRef.current !== elapsedMinutes
+          ) {
+            lastVibratedMinuteRef.current = elapsedMinutes;
+            triggerCountdownTick(elapsedMinutes, false);
+          }
+        }
+      }
     };
 
     updateTimer();
 
     // Listen to visibilitychange so returning to the app immediately recalculates exact seconds
+    // and locking the phone provides instant confirmation vibration
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         updateTimer();
+      } else if (document.visibilityState === 'hidden' && activeBreak) {
+        // Screen was just locked during an active break
+        if (settings.vibrateEnabled !== false && settings.countdownVibrationEnabled !== false) {
+          triggerScreenLockConfirmation();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -266,9 +318,9 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [currentDayKey, todayCompletedBreaks, totalUsedSecondsToday, allowanceSeconds, remainingSeconds]);
 
-  // Sound Alarm Monitor: Checks 3 min warning and limit reached
+  // Sound & Vibration Alarm Monitor: Checks 3 min warning and limit reached
   useEffect(() => {
-    if (!activeBreak || !settings.soundAlertsEnabled) return;
+    if (!activeBreak) return;
 
     const warningThresholdSeconds = settings.warningMinutesBeforeEnd * 60;
 
@@ -279,7 +331,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       !warningAlarmFiredRef.current
     ) {
       warningAlarmFiredRef.current = true;
-      playWarningAlarm(settings.alarmVolume ?? 80);
+      if (settings.soundAlertsEnabled) {
+        playWarningAlarm(settings.alarmVolume ?? 80);
+      }
+      if (settings.vibrateEnabled !== false) {
+        triggerWarningVibration();
+      }
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⚠️ Zbliża się koniec przerwy!', {
@@ -292,7 +349,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Check 0 min limit alarm
     if (remainingSeconds <= 0 && !limitAlarmFiredRef.current) {
       limitAlarmFiredRef.current = true;
-      playLimitReachedAlarm(settings.alarmVolume ?? 80);
+      if (settings.soundAlertsEnabled) {
+        playLimitReachedAlarm(settings.alarmVolume ?? 80);
+      }
+      if (settings.vibrateEnabled !== false) {
+        triggerLimitReachedVibration();
+      }
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⏰ Limit przerwy wykorzystany!', {
@@ -457,6 +519,16 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const testVibration = (type: 'tick' | 'warning' | 'lock' = 'tick'): boolean => {
+    if (type === 'tick') {
+      return triggerHaptic([100, 60, 180]);
+    } else if (type === 'lock') {
+      return triggerHaptic([70, 50, 70]);
+    } else {
+      return triggerHaptic([250, 100, 250, 100, 450]);
+    }
+  };
+
   const exportDataJSON = () => {
     return JSON.stringify(
       {
@@ -491,6 +563,25 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     const action = url.searchParams.get('action');
+
+    // Check if coworker scanned QR code or clicked shared link with ?webhook=...
+    const webhookParam = url.searchParams.get('webhook');
+    if (webhookParam) {
+      try {
+        const decodedWebhook = decodeURIComponent(webhookParam);
+        updateSettings({
+          googleChatWebhookUrl: decodedWebhook,
+          includeNameInSimpleMessage: true,
+        });
+      } catch {
+        updateSettings({
+          googleChatWebhookUrl: webhookParam,
+          includeNameInSimpleMessage: true,
+        });
+      }
+      url.searchParams.delete('webhook');
+      window.history.replaceState({}, '', url.toString());
+    }
 
     if (action === 'start' && !activeBreak) {
       startBreak();
@@ -587,6 +678,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         clearAllHistory,
         testWebhook,
         testSoundAlarm,
+        testVibration,
         lastWebhookStatus,
         exportDataJSON,
         importDataJSON,

@@ -11,13 +11,15 @@ import {
   AlertCircle, 
   ShieldCheck,
   Smartphone,
-  LayoutGrid
+  LayoutGrid,
+  Share2
 } from 'lucide-react';
 import { BreakProvider, useBreaks } from './context/BreakContext';
 import { MainBreakTracker } from './components/MainBreakTracker';
 import { BreakCalendar } from './components/BreakCalendar';
 import { SettingsModal } from './components/SettingsModal';
 import { WidgetGuideModal } from './components/WidgetGuideModal';
+import { ShareModal } from './components/ShareModal';
 import { FloatingMiniWidget } from './components/FloatingMiniWidget';
 import { DedicatedWidgetView } from './components/DedicatedWidgetView';
 import { PWAInstallButton } from './components/PWAInstallButton';
@@ -30,6 +32,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'tracker' | 'calendar' | 'logs'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWidgetGuideOpen, setIsWidgetGuideOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isMiniMode, setIsMiniMode] = useState(false);
   const [isDedicatedWidget, setIsDedicatedWidget] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -154,6 +157,16 @@ function AppContent() {
                   title="Instrukcja widgetu na ekran telefonu"
                 >
                   <Layers className="w-4 h-4" />
+                </button>
+
+                {/* Share with Coworkers */}
+                <button
+                  onClick={() => setIsShareOpen(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                  title="Udostępnij aplikację kolegom z pracy"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Udostępnij</span>
                 </button>
 
                 {/* Settings */}
@@ -310,6 +323,11 @@ function AppContent() {
             onClose={() => setIsWidgetGuideOpen(false)}
             onToggleMiniMode={() => setIsMiniMode(true)}
             onOpenDedicatedWidget={() => setIsDedicatedWidget(true)}
+          />
+
+          <ShareModal
+            isOpen={isShareOpen}
+            onClose={() => setIsShareOpen(false)}
           />
         </>
       )}

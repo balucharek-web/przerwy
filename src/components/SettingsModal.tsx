@@ -17,7 +17,8 @@ import {
   User, 
   Users,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Smartphone
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
@@ -33,6 +34,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     updateSettings,
     testWebhook,
     testSoundAlarm,
+    testVibration,
     clearTodayBreaks,
     clearAllHistory,
     exportDataJSON,
@@ -53,6 +55,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
+
+  const [vibrateEnabled, setVibrateEnabled] = useState(settings.vibrateEnabled ?? true);
+  const [countdownVibrationEnabled, setCountdownVibrationEnabled] = useState(settings.countdownVibrationEnabled ?? true);
+  const [vibrateOnlyWhenScreenLocked, setVibrateOnlyWhenScreenLocked] = useState(settings.vibrateOnlyWhenScreenLocked ?? true);
+  const [countdownVibrationIntervalMinutes, setCountdownVibrationIntervalMinutes] = useState(settings.countdownVibrationIntervalMinutes ?? 1);
 
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -75,6 +82,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       soundAlertsEnabled: soundAlerts,
       alarmVolume: Number(alarmVolume),
       browserNotificationsEnabled: browserNotifications,
+      vibrateEnabled,
+      countdownVibrationEnabled,
+      vibrateOnlyWhenScreenLocked,
+      countdownVibrationIntervalMinutes: Number(countdownVibrationIntervalMinutes) || 1,
       simpleChatMessages,
       startMessageText: startMessageText.trim() || 'start',
       stopMessageText: stopMessageText.trim() || 'stop',
@@ -366,6 +377,99 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </span>
                     </div>
                   </label>
+                )}
+              </div>
+
+              {/* Vibration Settings subsection */}
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={vibrateEnabled}
+                      onChange={(e) => setVibrateEnabled(e.target.checked)}
+                      className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800"
+                    />
+                    <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
+                      <Smartphone className="w-4 h-4" /> Wibracje telefonu (Haptic feedback)
+                    </span>
+                  </label>
+                  {vibrateEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => testVibration('tick')}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer flex items-center gap-1"
+                      title="Sprawdź jak wibruje telefon"
+                    >
+                      <span>Sprawdź wibrację</span>
+                    </button>
+                  )}
+                </div>
+
+                {vibrateEnabled && (
+                  <div className="space-y-2.5 pt-2 border-t border-slate-700/60 pl-6 text-[11px]">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={countdownVibrationEnabled}
+                        onChange={(e) => setCountdownVibrationEnabled(e.target.checked)}
+                        className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                      />
+                      <div>
+                        <span className="text-slate-200 font-semibold block text-xs">
+                          Dyskretne impulsy wibracyjne w kieszeni podczas odliczania
+                        </span>
+                        <span className="text-slate-400 block mt-0.5">
+                          Krótki impuls dotykowy informujący o upływie czasu przerwy bez konieczności patrzenia na ekran.
+                        </span>
+                      </div>
+                    </label>
+
+                    {countdownVibrationEnabled && (
+                      <>
+                        <label className="flex items-start gap-2.5 cursor-pointer pl-4 bg-amber-500/5 p-2 rounded-lg border border-amber-500/20">
+                          <input
+                            type="checkbox"
+                            checked={vibrateOnlyWhenScreenLocked}
+                            onChange={(e) => setVibrateOnlyWhenScreenLocked(e.target.checked)}
+                            className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                          />
+                          <div>
+                            <span className="text-amber-300 font-bold block text-xs">
+                              Wibruj TYLKO gdy zablokujesz ekran telefonu
+                            </span>
+                            <span className="text-slate-300 block mt-0.5 text-[10px]">
+                              Gdy patrzysz na ekran (telefon odblokowany), wibracje odliczania nie przeszkadzają. Włączają się automatycznie, gdy wygasisz ekran i schowasz telefon do kieszeni.
+                            </span>
+                          </div>
+                        </label>
+
+                        <div className="pl-4 pt-1 flex items-center justify-between">
+                          <span className="text-slate-300 text-xs">Częstotliwość impulsu w kieszeni:</span>
+                          <div className="flex gap-1.5">
+                            {[
+                              { val: 1, label: 'Co 1 min' },
+                              { val: 2, label: 'Co 2 min' },
+                              { val: 5, label: 'Co 5 min' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.val}
+                                type="button"
+                                onClick={() => setCountdownVibrationIntervalMinutes(opt.val)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition cursor-pointer ${
+                                  countdownVibrationIntervalMinutes === opt.val
+                                    ? 'bg-amber-500 text-slate-950 font-bold'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

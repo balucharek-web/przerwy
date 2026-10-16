@@ -17,6 +17,9 @@ export interface UserSettings {
   alarmVolume?: number; // 0 to 100, default 80
   browserNotificationsEnabled: boolean;
   vibrateEnabled: boolean;
+  countdownVibrationEnabled?: boolean; // default true: subtle haptic pulses in pocket during break
+  vibrateOnlyWhenScreenLocked?: boolean; // default true: vibrate ONLY when phone screen is locked/hidden
+  countdownVibrationIntervalMinutes?: number; // default 1: pulse every 1, 2, or 5 min
   simpleChatMessages: boolean; // default true: sends literally 'start' / 'stop'
   startMessageText: string; // default 'start'
   stopMessageText: string; // default 'stop'

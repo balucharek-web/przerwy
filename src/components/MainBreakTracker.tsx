@@ -13,7 +13,8 @@ import {
   Plus, 
   ChevronRight,
   RotateCcw,
-  History
+  History,
+  User
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel } from '../utils/dateUtils';

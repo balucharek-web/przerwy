@@ -177,6 +177,37 @@ export const BreakCalendar: React.FC = () => {
   const weekDayHeaders = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'So', 'Nd'];
   const todayKey = getDayKey(new Date(), settings.resetHour);
 
+  const handleExportMonthCSV = () => {
+    const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const monthBreaks = breaks.filter((b) => b.dayKey.startsWith(monthPrefix));
+    if (monthBreaks.length === 0) {
+      alert('Brak zarejestrowanych przerw w tym miesiącu.');
+      return;
+    }
+
+    const sorted = [...monthBreaks].sort(
+      (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+    );
+
+    let csv = 'Data;Od;Do;Czas trwania (min);Czas trwania (sek);Notatka\r\n';
+    for (const b of sorted) {
+      const datePart = b.dayKey;
+      const startPart = formatTimeOnly(b.startTime);
+      const endPart = b.endTime ? formatTimeOnly(b.endTime) : '-';
+      const durationMin = (b.durationSeconds / 60).toFixed(1);
+      const notePart = (b.note || '').replace(/;/g, ',');
+      csv += `${datePart};${startPart};${endPart};${durationMin};${b.durationSeconds};${notePart}\r\n`;
+    }
+
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `przerwy_${year}_${String(month + 1).padStart(2, '0')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-xl mx-auto">
       {/* Month Navigation & Controls */}
@@ -189,6 +220,14 @@ export const BreakCalendar: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportMonthCSV}
+            className="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition flex items-center gap-1 border border-slate-700/80 cursor-pointer"
+            title="Eksportuj przerwy z tego miesiąca do pliku CSV (Excel)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Eksport CSV</span>
+          </button>
           <button
             onClick={jumpToToday}
             className="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition"

@@ -50,8 +50,15 @@ function bindMediaSessionHandlers() {
         channel.postMessage({ type: 'NOTIFICATION_ACTION', action: 'stop' });
       }
     };
+    const handleStart = () => {
+      const channel = getControlChannel();
+      if (channel) {
+        channel.postMessage({ type: 'NOTIFICATION_ACTION', action: 'start' });
+      }
+    };
     navigator.mediaSession.setActionHandler('stop', handleStop);
     navigator.mediaSession.setActionHandler('pause', handleStop);
+    navigator.mediaSession.setActionHandler('play', handleStart);
     mediaSessionHandlersBound = true;
   } catch (e) {
     // Ignore
@@ -86,9 +93,12 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
 
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
 
-    const title = isBreakActive ? '⏱️ Trwa przerwa' : '☕ Gotowość do przerwy';
+    // Prominent title with timer so it is immediately visible on Android lock screen
+    const title = isBreakActive 
+      ? `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (zostało: ${formatDuration(remainingSeconds)})` 
+      : `☕ PrzerwaPro • Pozostało: ${formatDuration(remainingSeconds)}`;
     const body = isBreakActive
-      ? `Czas przerwy: ${formatDuration(currentBreakSeconds)} • Pozostało limitu: ${formatDuration(remainingSeconds)}`
+      ? `Licznik bieżący: ${formatDuration(currentBreakSeconds)} | Pozostały limit: ${formatDuration(remainingSeconds)} / ${formatDuration(allowanceSeconds)}`
       : `Pozostały limit: ${formatDuration(remainingSeconds)} / ${formatDuration(allowanceSeconds)}`;
 
     // Android notification action buttons
@@ -114,11 +124,14 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
       actions,
       silent: true,
       renotify: false,
+      requireInteraction: isBreakActive,
+      ongoing: isBreakActive,
+      timestamp: Date.now(),
       data: {
         isBreakActive,
         updatedAt: Date.now(),
       },
-    } as NotificationOptions);
+    } as any);
 
     // Also update MediaSession API (for Android lockscreen controls)
     updateMediaSessionControls(state);
@@ -165,9 +178,15 @@ function updateMediaSessionControls(state: NotificationControlState) {
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
 
     navigator.mediaSession.metadata = new MediaMetadata({
-      title: isBreakActive ? `Trwa przerwa: ${formatDuration(currentBreakSeconds)}` : 'W pracy (gotowość)',
-      artist: `Pozostały limit: ${formatDuration(remainingSeconds)}`,
-      album: `PrzerwaPro (${formatDuration(allowanceSeconds)} limit)`,
+      title: isBreakActive 
+        ? `⏱️ ${formatDuration(currentBreakSeconds)} (Czas przerwy)` 
+        : '☕ Gotowość do przerwy',
+      artist: isBreakActive
+        ? `Pozostało dzisiaj: ${formatDuration(remainingSeconds)}`
+        : `Dzienny limit: ${formatDuration(allowanceSeconds)}`,
+      album: isBreakActive 
+        ? 'PrzerwaPro (Dotknij Stop aby zakończyć)' 
+        : 'PrzerwaPro (Dotknij Play aby zacząć)',
       artwork: [
         { src: './pwa-192x192.png', sizes: '192x192', type: 'image/png' },
         { src: './pwa-512x512.png', sizes: '512x512', type: 'image/png' },
@@ -175,6 +194,18 @@ function updateMediaSessionControls(state: NotificationControlState) {
     });
 
     navigator.mediaSession.playbackState = isBreakActive ? 'playing' : 'paused';
+
+    if ('setPositionState' in navigator.mediaSession && isBreakActive) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: Math.max(allowanceSeconds, currentBreakSeconds + 1),
+          playbackRate: 1,
+          position: Math.min(allowanceSeconds, currentBreakSeconds),
+        });
+      } catch (e) {
+        // Ignore
+      }
+    }
   } catch (e) {
     // Ignore
   }
