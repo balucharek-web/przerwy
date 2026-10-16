@@ -725,7 +725,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     if ('serviceWorker' in navigator) {
                       const registrations = await navigator.serviceWorker.getRegistrations();
                       for (const reg of registrations) {
-                        await reg.update();
+                        await reg.unregister();
                       }
                     }
                     if ('caches' in window) {
@@ -734,10 +734,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         await caches.delete(key);
                       }
                     }
-                    window.location.reload();
                   } catch (e) {
-                    window.location.reload();
+                    // Ignore
                   }
+                  const cleanUrl = window.location.origin + window.location.pathname;
+                  window.location.replace(`${cleanUrl}?v=${Date.now()}`);
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition text-xs font-semibold cursor-pointer"
                 title="Wyczyść pamięć podręczną i załaduj najnowszą wersję aplikacji"
