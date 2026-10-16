@@ -47,6 +47,9 @@ interface BreakContextType {
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
+  undoState: { type: 'start' | 'stop'; label: string; timestamp: number } | null;
+  undoLastAction: () => void;
+  dismissUndo: () => void;
 }
 
 export const TEAM_SHARED_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAAA94ZyILs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=aoQFsSDKoYcofsyF4Cd1cynnTkNShzZDilpkNcJ4j2c';
@@ -135,6 +138,15 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Running second counter for active break
   const [currentBreakSeconds, setCurrentBreakSeconds] = useState<number>(0);
+
+  // Undo state for accidental Start / Stop clicks
+  const [undoState, setUndoState] = useState<{
+    type: 'start' | 'stop';
+    label: string;
+    timestamp: number;
+    payload?: any;
+  } | null>(null);
+  const undoTimeoutRef = useRef<any>(null);
 
   // Flags to avoid multiple alarms in the same break session
   const warningAlarmFiredRef = useRef<boolean>(false);
@@ -386,6 +398,18 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveBreak(newBreak);
     playToggleFeedback(true, settings.alarmVolume ?? 80);
 
+    // Save undo state
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    setUndoState({
+      type: 'start',
+      label: 'Rozpoczęto przerwę',
+      timestamp: Date.now(),
+      payload: { breakId: newBreak.id },
+    });
+    undoTimeoutRef.current = setTimeout(() => {
+      setUndoState(null);
+    }, 8000);
+
     if (settings.googleChatWebhookUrl) {
       setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
       sendGoogleChatWebhook({
@@ -437,6 +461,18 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     stopBackgroundKeepAlive();
     playToggleFeedback(false, settings.alarmVolume ?? 80);
 
+    // Save undo state for stop
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    setUndoState({
+      type: 'stop',
+      label: 'Zakończono przerwę',
+      timestamp: Date.now(),
+      payload: { completedBreak: completed },
+    });
+    undoTimeoutRef.current = setTimeout(() => {
+      setUndoState(null);
+    }, 8000);
+
     const newTotalToday = todayCompletedSeconds + duration;
 
     if (settings.googleChatWebhookUrl) {
@@ -454,6 +490,32 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
       }).then((log) => addWebhookLog(log));
     }
+  };
+
+  const dismissUndo = () => {
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    setUndoState(null);
+  };
+
+  const undoLastAction = () => {
+    if (!undoState) return;
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+
+    if (undoState.type === 'start') {
+      setActiveBreak(null);
+      clearSystemNotificationBar();
+      stopBackgroundKeepAlive();
+    } else if (undoState.type === 'stop') {
+      const { completedBreak } = undoState.payload || {};
+      if (completedBreak) {
+        setBreaks((prev) => prev.filter((b) => b.id !== completedBreak.id));
+        setActiveBreak({
+          ...completedBreak,
+          endTime: null,
+        });
+      }
+    }
+    setUndoState(null);
   };
 
   const deleteBreak = (id: string) => {
@@ -682,6 +744,9 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         lastWebhookStatus,
         exportDataJSON,
         importDataJSON,
+        undoState,
+        undoLastAction,
+        dismissUndo,
       }}
     >
       {children}

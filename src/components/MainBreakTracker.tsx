@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Coffee, 
   Square, 
@@ -7,17 +7,18 @@ import {
   AlertTriangle, 
   CheckCircle2, 
   Bell, 
-  Send, 
   Trash2, 
   MessageSquare, 
   Plus, 
   ChevronRight,
   RotateCcw,
   History,
-  User
+  ChevronDown,
+  Moon,
+  X
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
-import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel } from '../utils/dateUtils';
+import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
 import { requestNotificationPermission } from '../utils/notificationControl';
 
 interface MainBreakTrackerProps {
@@ -39,23 +40,39 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
     startBreak,
     stopBreak,
     deleteBreak,
+    updateBreak,
     addManualBreak,
-    lastWebhookStatus,
     updateSettings,
   } = useBreaks();
 
-  const [noteInput, setNoteInput] = useState('');
   const [showManualModal, setShowManualModal] = useState(false);
   const [showCustomAdjustmentModal, setShowCustomAdjustmentModal] = useState(false);
+  const [showCorrectionDetails, setShowCorrectionDetails] = useState(false);
+  const [isOledMode, setIsOledMode] = useState(false);
   const [customSubtractMinutes, setCustomSubtractMinutes] = useState(5);
   const [manualStartTime, setManualStartTime] = useState('');
   const [manualEndTime, setManualEndTime] = useState('');
   const [manualNote, setManualNote] = useState('');
 
+  // Screen Wake Lock for OLED Desk Mode to keep screen active
+  useEffect(() => {
+    let wakeLockSentinel: any = null;
+    if (isOledMode && typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      (navigator as any).wakeLock.request('screen').then((lock: any) => {
+        wakeLockSentinel = lock;
+      }).catch(() => {});
+    }
+    return () => {
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {});
+      }
+    };
+  }, [isOledMode]);
+
   const handleStopWithAdjustment = (minutes: number) => {
-    stopBreak(noteInput.trim() || undefined, minutes);
-    setNoteInput('');
+    stopBreak(undefined, minutes);
     setShowCustomAdjustmentModal(false);
+    setShowCorrectionDetails(false);
   };
 
   const isBreakActive = !!activeBreak;
@@ -64,19 +81,24 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
   const percentUsed = Math.min(100, Math.round((totalSeconds / allowanceSeconds) * 100));
   const isWarningZone = remainingSeconds <= settings.warningMinutesBeforeEnd * 60 && remainingSeconds > 0;
 
+  // Target wall-clock time when current break ends (or hypothetical return if starting now)
+  const targetEndTime = useMemo(() => {
+    if (remainingSeconds <= 0) return null;
+    return new Date(Date.now() + remainingSeconds * 1000);
+  }, [remainingSeconds]);
+
   // Ring circumference for SVG progress
   const radius = 115;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (Math.min(percentUsed, 100) / 100) * circumference;
 
   const handleStart = () => {
-    startBreak(noteInput.trim() || undefined);
-    setNoteInput('');
+    startBreak();
   };
 
   const handleStop = () => {
-    stopBreak(noteInput.trim() || undefined);
-    setNoteInput('');
+    stopBreak();
+    setShowCorrectionDetails(false);
   };
 
   const handleSaveManual = (e: React.FormEvent) => {
@@ -110,40 +132,6 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-xl mx-auto">
-      {/* Top Status & Date Header */}
-      <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded-2xl p-4 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-3.5 h-3.5 rounded-full ${
-              isBreakActive
-                ? 'bg-amber-400 animate-ping'
-                : 'bg-emerald-400'
-            }`}
-          />
-          <div>
-            <div className="text-xs uppercase tracking-wider font-semibold text-slate-400">
-              Stan obecny
-            </div>
-            <div className="text-sm font-bold text-white flex items-center gap-1.5">
-              {isBreakActive ? (
-                <span className="text-amber-400 flex items-center gap-1">
-                  <Coffee className="w-4 h-4 inline" /> Trwa przerwa
-                </span>
-              ) : (
-                <span className="text-emerald-400">W pracy / gotowość</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="text-right">
-          <div className="text-xs text-slate-400">Reset limitu o {settings.resetHour}</div>
-          <div className="text-xs font-medium text-slate-300">
-            {new Date().toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </div>
-        </div>
-      </div>
-
       {/* Main Hero Card with Timer and Circular Progress */}
       <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center">
         {/* Glow decoration */}
@@ -201,13 +189,17 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                 <div className="text-4xl sm:text-5xl font-mono font-extrabold text-white tracking-tight drop-shadow-md">
                   {formatDuration(currentBreakSeconds)}
                 </div>
-                <div className="mt-2 text-xs text-slate-400">
-                  {remainingSeconds >= 0 ? (
-                    <span>
-                      Pozostało dzisiaj: <strong className={isWarningZone ? 'text-amber-400 font-bold' : 'text-slate-200'}>{formatDuration(remainingSeconds)}</strong>
-                    </span>
+
+                {/* Target return time prominent display */}
+                <div className="mt-2 text-xs flex flex-col items-center gap-0.5">
+                  {remainingSeconds > 0 && targetEndTime ? (
+                    <div className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Koniec przerwy: <strong className="font-mono text-white text-sm font-black">{formatShortTime(targetEndTime)}</strong></span>
+                      <span className="text-[10px] text-amber-400/80">({formatDuration(remainingSeconds)})</span>
+                    </div>
                   ) : (
-                    <span className="text-rose-400 font-bold">
+                    <span className="text-rose-400 font-bold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 text-xs">
                       Przekroczono o {formatDuration(Math.abs(remainingSeconds))}!
                     </span>
                   )}
@@ -226,7 +218,14 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                   {formatDuration(remainingSeconds)}
                 </div>
                 <div className="mt-2 text-xs text-slate-400">
-                  z limitu {settings.dailyAllowanceMinutes} min
+                  {remainingSeconds > 0 && targetEndTime ? (
+                    <span className="text-[11px] text-slate-300 flex items-center gap-1">
+                      <span>Jeśli wyjdziesz teraz: powrót o</span>
+                      <strong className="text-amber-400 font-mono font-bold text-xs">{formatShortTime(targetEndTime)}</strong>
+                    </span>
+                  ) : (
+                    <span>z limitu {settings.dailyAllowanceMinutes} min</span>
+                  )}
                 </div>
               </>
             )}
@@ -267,141 +266,62 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                 <span>ZAKOŃCZ PRZERWĘ (STOP)</span>
               </button>
 
-              {/* Szybka korekta: Zapomniałem kliknąć Stop */}
-              <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-1.5 shadow-md">
-                <div className="flex items-center justify-between px-1 text-[11px]">
-                  <span className="flex items-center gap-1 font-medium text-slate-300">
-                    <History className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Wróciłeś wcześniej? Korekta czasu:</span>
-                  </span>
-                  <span className="text-[10px] text-slate-500">Odejmij czas</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => handleStopWithAdjustment(5)}
-                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
-                    title="Zakończ przerwę i odejmij 5 minut (wróciłem 5 min temu)"
-                  >
-                    <RotateCcw className="w-3 h-3 shrink-0" />
-                    <span>-5 min temu</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleStopWithAdjustment(10)}
-                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
-                    title="Zakończ przerwę i odejmij 10 minut (wróciłem 10 min temu)"
-                  >
-                    <RotateCcw className="w-3 h-3 shrink-0" />
-                    <span>-10 min temu</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowCustomAdjustmentModal(true)}
-                    className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-slate-600 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
-                    title="Podaj inną liczbę minut do odjęcia"
-                  >
-                    <Clock className="w-3 h-3 shrink-0 text-slate-400" />
-                    <span>Inna...</span>
-                  </button>
-                </div>
+              {/* Subtelna, zwijana korekta czasu (nie zaśmieca widoku) */}
+              <div className="flex flex-col items-center w-full">
+                <button
+                  type="button"
+                  onClick={() => setShowCorrectionDetails(!showCorrectionDetails)}
+                  className="mt-1 text-[11px] text-slate-400 hover:text-amber-400 flex items-center gap-1.5 py-1 transition cursor-pointer select-none"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Zapomniałeś kliknąć Stop? Skoryguj czas</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showCorrectionDetails ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showCorrectionDetails && (
+                  <div className="w-full mt-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-2.5 flex flex-col gap-1.5 shadow-md animate-in fade-in">
+                    <div className="flex items-center justify-between px-1 text-[11px]">
+                      <span className="flex items-center gap-1 font-medium text-slate-300">
+                        <History className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Wróciłeś wcześniej? Korekta czasu:</span>
+                      </span>
+                      <span className="text-[10px] text-slate-500">Zakończ z korektą</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleStopWithAdjustment(5)}
+                        className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                        title="Zakończ przerwę i odejmij 5 minut (wróciłem 5 min temu)"
+                      >
+                        <RotateCcw className="w-3 h-3 shrink-0" />
+                        <span>-5 min temu</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleStopWithAdjustment(10)}
+                        className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-amber-500/50 border border-slate-700 text-amber-300 text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                        title="Zakończ przerwę i odejmij 10 minut (wróciłem 10 min temu)"
+                      >
+                        <RotateCcw className="w-3 h-3 shrink-0" />
+                        <span>-10 min temu</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomAdjustmentModal(true)}
+                        className="py-1.5 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 hover:border-slate-600 border border-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1 transition active:scale-95 cursor-pointer shadow-sm"
+                        title="Podaj inną liczbę minut do odjęcia"
+                      >
+                        <Clock className="w-3 h-3 shrink-0 text-slate-400" />
+                        <span>Inna...</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
-
-          {/* Note input when active or before starting */}
-          <div className="flex items-center gap-2 bg-slate-800/60 border border-slate-700/60 rounded-xl px-3 py-2 text-xs">
-            <MessageSquare className="w-4 h-4 text-slate-400 shrink-0" />
-            <input
-              type="text"
-              placeholder={isBreakActive ? 'Dodaj notatkę do tej przerwy (np. obiad, spacer)...' : 'Opcjonalna notatka przed startem...'}
-              value={noteInput}
-              onChange={(e) => setNoteInput(e.target.value)}
-              className="w-full bg-transparent text-slate-200 placeholder-slate-500 focus:outline-none"
-            />
-          </div>
         </div>
-
-        {/* Google Chat Webhook Status Feedback */}
-        {settings.googleChatWebhookUrl ? (
-          <div className="w-full mt-4 flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-800 text-xs">
-            <div className="flex items-center gap-2 text-slate-400">
-              <Send className="w-3.5 h-3.5 text-blue-400" />
-              <span>Google Chat:</span>
-              <span className="text-slate-300 font-medium truncate max-w-[150px]">
-                {settings.googleChatUserName || 'Webhook'}
-              </span>
-            </div>
-            {lastWebhookStatus.status === 'sending' && (
-              <span className="text-amber-400 animate-pulse text-[11px]">Wysyłanie...</span>
-            )}
-            {lastWebhookStatus.status === 'success' && (
-              <span className="text-emerald-400 flex items-center gap-1 text-[11px]">
-                <CheckCircle2 className="w-3 h-3" /> Wysłano
-              </span>
-            )}
-            {lastWebhookStatus.status === 'error' && (
-              <span className="text-rose-400 flex items-center gap-1 text-[11px]" title={lastWebhookStatus.message}>
-                <AlertTriangle className="w-3 h-3" /> Błąd wysyłki
-              </span>
-            )}
-            {lastWebhookStatus.status === 'idle' && (
-              <span className="text-slate-500 text-[11px]">Aktywny</span>
-            )}
-          </div>
-        ) : (
-          <button
-            onClick={onOpenSettings}
-            className="w-full mt-4 text-xs text-slate-400 hover:text-amber-400 flex items-center justify-center gap-1.5 py-1.5 transition"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>Kliknij, aby podpiąć webhook Google Chat</span>
-          </button>
-        )}
-      </div>
-
-      {/* Notification Bar Controls Card (Option 1) */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-        <div className="flex items-start sm:items-center gap-3">
-          <div className={`p-2.5 rounded-xl shrink-0 ${settings.notificationBarControlsEnabled !== false ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500'}`}>
-            <Bell className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-xs">Pasek powiadomień ze sterowaniem START/STOP</span>
-              {settings.notificationBarControlsEnabled !== false ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30">
-                  Aktywne
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-semibold">
-                  Wyłączone
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Steruj przerwą bezpośrednio z wysuwanego paska Androida i ekranu blokady bez wchodzenia do aplikacji.
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={async () => {
-            const newState = settings.notificationBarControlsEnabled === false;
-            if (newState) {
-              await requestNotificationPermission();
-            }
-            updateSettings({ notificationBarControlsEnabled: newState });
-          }}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
-            settings.notificationBarControlsEnabled !== false
-              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-              : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-          }`}
-        >
-          {settings.notificationBarControlsEnabled !== false ? 'Wyłącz' : 'Włącz przyciski'}
-        </button>
       </div>
 
       {/* Quick Summary Grid */}
@@ -682,6 +602,107 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* OLED Desk Mode (Pure Black, Extra Large Font, Battery Friendly) */}
+      {isOledMode && (
+        <div className="fixed inset-0 z-50 bg-black text-white flex flex-col justify-between p-6 select-none animate-in fade-in">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs uppercase tracking-widest font-mono text-slate-400">
+                Tryb Biurkowy &bull; AMOLED Black
+              </span>
+            </div>
+            <button
+              onClick={() => setIsOledMode(false)}
+              className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>Zamknij</span>
+            </button>
+          </div>
+
+          {/* Center Digital Display */}
+          <div className="flex flex-col items-center justify-center my-auto text-center space-y-4">
+            <div
+              className={`px-3.5 py-1 rounded-full text-xs font-bold tracking-wider uppercase border ${
+                isBreakActive
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/40 animate-pulse'
+                  : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+              }`}
+            >
+              {isBreakActive ? 'Trwa przerwa w pracy' : 'W pracy / gotowość'}
+            </div>
+
+            <div className="font-mono text-7xl sm:text-9xl font-black text-amber-400 tracking-tight drop-shadow-2xl">
+              {isBreakActive ? formatDuration(currentBreakSeconds) : formatDuration(remainingSeconds)}
+            </div>
+
+            <div className="text-sm sm:text-base text-slate-400 flex flex-col items-center gap-1">
+              {isBreakActive ? (
+                remainingSeconds > 0 && targetEndTime ? (
+                  <div className="flex items-center gap-2 text-amber-300 font-semibold text-base sm:text-lg">
+                    <Clock className="w-5 h-5 text-amber-400" />
+                    <span>Wróć do pracy o: <strong className="font-mono text-white text-xl font-black">{formatShortTime(targetEndTime)}</strong></span>
+                    <span className="text-slate-500 text-xs">({formatDuration(remainingSeconds)})</span>
+                  </div>
+                ) : (
+                  <span className="text-rose-400 font-bold text-base animate-pulse">
+                    Limit przekroczony o {formatDuration(Math.abs(remainingSeconds))}!
+                  </span>
+                )
+              ) : (
+                remainingSeconds > 0 && targetEndTime ? (
+                  <div className="text-slate-400 text-xs flex items-center gap-1">
+                    <span>Jeśli pójdziesz teraz: powrót o</span>
+                    <strong className="text-amber-400 font-mono text-sm">{formatShortTime(targetEndTime)}</strong>
+                  </div>
+                ) : (
+                  <span className="text-slate-500 text-xs">Brak dostępnego limitu na dziś</span>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Action Button */}
+          <div className="w-full max-w-md mx-auto space-y-3">
+            {!isBreakActive ? (
+              <button
+                onClick={handleStart}
+                className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xl tracking-wider shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3 transition active:scale-95 cursor-pointer"
+              >
+                <Play className="w-7 h-7 fill-slate-950" />
+                <span>ROZPOCZNIJ PRZERWĘ</span>
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  onClick={handleStop}
+                  className="w-full py-5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xl tracking-wider shadow-lg shadow-rose-600/30 flex items-center justify-center gap-3 transition active:scale-95 cursor-pointer animate-pulse"
+                >
+                  <Square className="w-7 h-7 fill-white" />
+                  <span>ZAKOŃCZ PRZERWĘ</span>
+                </button>
+                <div className="flex justify-center gap-2">
+                  <button
+                    onClick={() => handleStopWithAdjustment(5)}
+                    className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-amber-300 text-xs font-semibold hover:bg-neutral-800 transition cursor-pointer"
+                  >
+                    -5m temu
+                  </button>
+                  <button
+                    onClick={() => handleStopWithAdjustment(10)}
+                    className="px-3 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-amber-300 text-xs font-semibold hover:bg-neutral-800 transition cursor-pointer"
+                  >
+                    -10m temu
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

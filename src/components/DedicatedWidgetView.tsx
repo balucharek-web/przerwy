@@ -4,9 +4,6 @@ import {
   Play, 
   Square, 
   ArrowLeft, 
-  Send, 
-  CheckCircle2, 
-  AlertTriangle, 
   Bell, 
   Smartphone, 
   Copy, 
@@ -38,7 +35,6 @@ export const DedicatedWidgetView: React.FC<DedicatedWidgetViewProps> = ({
     startBreak,
     stopBreak,
     settings,
-    lastWebhookStatus,
   } = useBreaks();
 
   const { isInstallable, isInstalled, install } = usePWAInstall();
@@ -192,34 +188,6 @@ export const DedicatedWidgetView: React.FC<DedicatedWidgetViewProps> = ({
             </div>
           </div>
         )}
-
-        {/* Chat Webhook Status Feedback */}
-        {settings.googleChatWebhookUrl ? (
-          <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[10px] text-slate-400">
-            <span className="flex items-center gap-1">
-              <Send className="w-3 h-3 text-blue-400" />
-              <span>Google Chat:</span>
-            </span>
-            {lastWebhookStatus.status === 'sending' && (
-              <span className="text-amber-400 font-bold animate-pulse">Wysyłanie...</span>
-            )}
-            {lastWebhookStatus.status === 'success' && (
-              <span className="text-emerald-400 font-bold flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Wysłano
-              </span>
-            )}
-            {lastWebhookStatus.status === 'error' && (
-              <span className="text-rose-400 font-bold flex items-center gap-1">
-                <AlertTriangle className="w-3 h-3" /> Błąd
-              </span>
-            )}
-            {lastWebhookStatus.status === 'idle' && (
-              <span className="text-slate-500">
-                Wysyła: "{settings.simpleChatMessages ? 'start' : 'raport'}" i "{settings.simpleChatMessages ? 'stop' : 'raport'}"
-              </span>
-            )}
-          </div>
-        ) : null}
 
         {/* Home Screen Add Button & Guide Trigger */}
         <div className="space-y-2 pt-1 border-t border-slate-800/80">

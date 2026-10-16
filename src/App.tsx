@@ -5,14 +5,17 @@ import {
   Settings as SettingsIcon, 
   Layers, 
   Clock, 
-  Send, 
   Minimize2, 
   CheckCircle2, 
   AlertCircle, 
-  ShieldCheck,
-  Smartphone,
   LayoutGrid,
-  Share2
+  Share2,
+  QrCode,
+  RotateCcw,
+  X,
+  Smartphone,
+  Download,
+  ChevronRight
 } from 'lucide-react';
 import { BreakProvider, useBreaks } from './context/BreakContext';
 import { MainBreakTracker } from './components/MainBreakTracker';
@@ -27,9 +30,9 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
 
 function AppContent() {
-  const { webhookLogs, activeBreak } = useBreaks();
+  const { activeBreak, undoState, undoLastAction, dismissUndo } = useBreaks();
 
-  const [activeTab, setActiveTab] = useState<'tracker' | 'calendar' | 'logs'>('tracker');
+  const [activeTab, setActiveTab] = useState<'tracker' | 'calendar'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWidgetGuideOpen, setIsWidgetGuideOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -47,8 +50,6 @@ function AppContent() {
     const tabParam = params.get('tab');
     if (tabParam === 'calendar') {
       setActiveTab('calendar');
-    } else if (tabParam === 'logs') {
-      setActiveTab('logs');
     }
     if (params.get('mode') === 'widget' || params.get('widget') === 'true') {
       setIsDedicatedWidget(true);
@@ -122,58 +123,27 @@ function AppContent() {
                       PWA
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400 -mt-0.5">30 min limit &bull; Alarm &bull; Google Chat</div>
+                  <div className="text-[10px] text-slate-400 -mt-0.5">30 min limit dzienny &bull; Alarm powrotu</div>
                 </div>
               </div>
 
-              {/* Action Buttons & Install */}
+              {/* Action Buttons */}
               <div className="flex items-center gap-2">
-                {/* 1-Tap Widget Mode Button (Start + Stop in one tile) */}
-                <button
-                  onClick={() => setIsDedicatedWidget(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition"
-                  title="Otwórz widok Widgetu (Start + Stop)"
-                >
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Widget Start/Stop</span>
-                </button>
-
-                {/* PWA Install Button */}
-                <PWAInstallButton compact />
-
-                {/* Mini Mode Toggle */}
-                <button
-                  onClick={() => setIsMiniMode(true)}
-                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition hidden sm:flex"
-                  title="Tryb mini-widgetu na pulpicie"
-                >
-                  <Minimize2 className="w-4 h-4" />
-                </button>
-
-                {/* Widget Guide */}
-                <button
-                  onClick={() => setIsWidgetGuideOpen(true)}
-                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition"
-                  title="Instrukcja widgetu na ekran telefonu"
-                >
-                  <Layers className="w-4 h-4" />
-                </button>
-
-                {/* Share with Coworkers */}
+                {/* 1. Share & QR */}
                 <button
                   onClick={() => setIsShareOpen(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                  title="Udostępnij aplikację kolegom z pracy"
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                  title="Udostępnij webhook i kod QR koledze z pracy"
                 >
-                  <Share2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Udostępnij</span>
+                  <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Udostępnij / QR</span>
                 </button>
 
-                {/* Settings */}
+                {/* 2. Settings */}
                 <button
                   onClick={() => setIsSettingsOpen(true)}
-                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition"
-                  title="Ustawienia"
+                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition cursor-pointer"
+                  title="Ustawienia i konfiguracja"
                 >
                   <SettingsIcon className="w-4 h-4" />
                 </button>
@@ -210,23 +180,6 @@ function AppContent() {
                 <CalendarIcon className="w-3.5 h-3.5" />
                 <span>Kalendarz</span>
               </button>
-
-              <button
-                onClick={() => setActiveTab('logs')}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all ${
-                  activeTab === 'logs'
-                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Google Chat</span>
-                {webhookLogs.length > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-800 text-slate-300">
-                    {webhookLogs.length}
-                  </span>
-                )}
-              </button>
             </div>
           </nav>
 
@@ -241,75 +194,6 @@ function AppContent() {
             )}
 
             {activeTab === 'calendar' && <BreakCalendar />}
-
-            {activeTab === 'logs' && (
-              <div className="max-w-xl mx-auto space-y-4">
-                <div className="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-2xl p-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
-                      <Send className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-white">Historia powiadomień Google Chat</h3>
-                      <p className="text-xs text-slate-400">Komunikaty wysłane po Start i Stop</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="text-xs px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
-                  >
-                    Konfiguruj
-                  </button>
-                </div>
-
-                {webhookLogs.length === 0 ? (
-                  <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-8 text-center text-slate-500 text-xs flex flex-col items-center gap-2">
-                    <Send className="w-8 h-8 text-slate-700" />
-                    <span>Brak wysłanych powiadomień w historii sesji.</span>
-                    <span className="text-slate-600">
-                      Po dodaniu webhooka każde kliknięcie Start i Stop automatycznie wyśle komunikat "start" lub "stop" na czat.
-                    </span>
-                  </div>
-                ) : (
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl divide-y divide-slate-800/80 overflow-hidden">
-                    {webhookLogs.map((log) => (
-                      <div key={log.id} className="p-3.5 text-xs flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2.5">
-                          {log.status === 'success' ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                          )}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold uppercase text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                                {log.action === 'start' ? 'Start przerwy' : log.action === 'stop' ? 'Stop przerwy' : 'Test'}
-                              </span>
-                              <span className="text-[11px] text-slate-400">
-                                {formatTimeOnly(log.timestamp)}
-                              </span>
-                            </div>
-                            <div className="mt-1 text-slate-300 leading-relaxed font-mono text-[11px]">
-                              {log.message}
-                            </div>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                            log.status === 'success'
-                              ? 'bg-emerald-500/10 text-emerald-400'
-                              : 'bg-rose-500/10 text-rose-400'
-                          }`}
-                        >
-                          {log.status === 'success' ? 'Dostarczono' : 'Błąd'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </main>
 
           {/* Modals */}
@@ -329,6 +213,28 @@ function AppContent() {
             isOpen={isShareOpen}
             onClose={() => setIsShareOpen(false)}
           />
+
+          {/* Floating Undo Toast for accidental Start / Stop */}
+          {undoState && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/50 shadow-2xl backdrop-blur-md text-white text-xs animate-in slide-in-from-bottom-4 shadow-amber-500/20">
+              <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span className="font-semibold text-slate-200">{undoState.label}</span>
+              <button
+                onClick={undoLastAction}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Cofnij</span>
+              </button>
+              <button
+                onClick={dismissUndo}
+                className="text-slate-400 hover:text-white p-1 ml-1 cursor-pointer"
+                title="Zamknij"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
