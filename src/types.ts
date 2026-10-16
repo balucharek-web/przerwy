@@ -19,7 +19,9 @@ export interface UserSettings {
   simpleChatMessages: boolean; // default true: sends literally 'start' / 'stop'
   startMessageText: string; // default 'start'
   stopMessageText: string; // default 'stop'
-  notificationBarControlsEnabled?: boolean; // default true: shows start/stop persistent notification bar controls
+  includeNameInSimpleMessage?: boolean; // default false: adds "Imię: start" / "Imię: stop" for shared team webhooks
+  notificationBarControlsEnabled?: boolean; // default true: shows start/stop notification bar controls
+  notificationBarOnlyDuringBreak?: boolean; // default true: shows notification ONLY while break is active, disappears on stop
 }
 
 export interface WebhookLog {

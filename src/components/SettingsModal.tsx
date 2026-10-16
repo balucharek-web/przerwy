@@ -14,6 +14,7 @@ import {
   Download, 
   Upload, 
   User, 
+  Users,
   Trash2,
   ExternalLink
 } from 'lucide-react';
@@ -47,7 +48,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [simpleChatMessages, setSimpleChatMessages] = useState(settings.simpleChatMessages ?? true);
   const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
   const [stopMessageText, setStopMessageText] = useState(settings.stopMessageText || 'stop');
+  const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
+  const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
 
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -72,7 +75,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       simpleChatMessages,
       startMessageText: startMessageText.trim() || 'start',
       stopMessageText: stopMessageText.trim() || 'stop',
+      includeNameInSimpleMessage,
       notificationBarControlsEnabled: notificationBarControls,
+      notificationBarOnlyDuringBreak,
     });
 
     setSaveSuccess(true);
@@ -268,25 +273,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <span className="text-slate-300 font-medium">Powiadomienia systemowe o alarmach</span>
               </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                <input
-                  type="checkbox"
-                  checked={notificationBarControls}
-                  onChange={(e) => {
-                    setNotificationBarControls(e.target.checked);
-                    if (e.target.checked) {
-                      handleRequestNotificationPermission();
-                    }
-                  }}
-                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
-                />
-                <div>
-                  <span className="text-amber-300 font-bold block text-xs">Pasek powiadomień ze sterowaniem START / STOP (Android)</span>
-                  <span className="text-slate-400 text-[11px] block mt-0.5">
-                    Wyświetla stałą belkę powiadomień w telefonie z przyciskami START i STOP, działającymi bezpośrednio z wysuwanego paska powiadomień i ekranu blokady.
-                  </span>
-                </div>
-              </label>
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationBarControls}
+                    onChange={(e) => {
+                      setNotificationBarControls(e.target.checked);
+                      if (e.target.checked) {
+                        handleRequestNotificationPermission();
+                      }
+                    }}
+                    className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                  />
+                  <div>
+                    <span className="text-amber-300 font-bold block text-xs">Pasek powiadomień ze sterowaniem START / STOP (Android)</span>
+                    <span className="text-slate-400 text-[11px] block mt-0.5">
+                      Wyświetla belkę powiadomień w telefonie z przyciskami bezpośrednio na pasku i ekranie blokady.
+                    </span>
+                  </div>
+                </label>
+
+                {notificationBarControls && (
+                  <label className="flex items-start gap-2.5 cursor-pointer pt-2 border-t border-slate-700/60 pl-6">
+                    <input
+                      type="checkbox"
+                      checked={notificationBarOnlyDuringBreak}
+                      onChange={(e) => setNotificationBarOnlyDuringBreak(e.target.checked)}
+                      className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-slate-200 font-semibold block text-xs">
+                        Pokazuj powiadomienie TYLKO podczas trwania przerwy
+                      </span>
+                      <span className="text-slate-400 text-[11px] block mt-0.5">
+                        Powiadomienie pojawia się w momencie kliknięcia Start (z licznikiem czasu na żywo i przyciskiem Stop), a po kliknięciu Stop <strong>znika natychmiast</strong> z paska powiadomień.
+                      </span>
+                    </div>
+                  </label>
+                )}
+              </div>
             </div>
 
             {/* Test buttons for audio */}
@@ -333,6 +359,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </button>
             </div>
 
+            {/* Box wyjaśniający nazwę bota i udostępnianie kolegom */}
+            <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 space-y-2 text-[11px] text-slate-300">
+              <div className="flex items-start gap-2">
+                <Users className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Dlaczego bot ma nazwę na czacie i jak udostępnić aplikację kolegom?</p>
+                  <p className="text-slate-300 mt-1 leading-relaxed">
+                    Nazwa bota (np. <em>"odbijacz przerw Arek"</em>) <strong>nie jest narzucona przez aplikację</strong> — została wpisana podczas dodawania Webhooka w pokoju Google Chat.
+                  </p>
+                </div>
+              </div>
+              <div className="pl-6 pt-1 space-y-1.5 border-t border-slate-700/60">
+                <p className="font-medium text-amber-300">Jak najlepiej udostępnić aplikację kolegom z pracy?</p>
+                <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                  <li>
+                    <strong>Sposób 1 (Rekomendowany — osobny webhook dla każdego):</strong> W Waszym pokonie na Google Chat każdy kolega może dodać swój webhook (np. <em>"Przerwa Kasia"</em>, <em>"Przerwa Tomek"</em>) i wkleić swój własny link w ustawieniach swojej aplikacji. Każda osoba ma w swojej przeglądarce niezależne dane!
+                  </li>
+                  <li>
+                    <strong>Sposób 2 (Jeden wspólny webhook):</strong> Wszyscy mogą korzystać z tego samego linku webhooka (np. o ogólnej nazwie <em>"Rejestrator Przerw"</em>). Włączcie wtedy opcję <strong>"Dołączaj imię pracownika"</strong> — wtedy wiadomości będą wyglądać np. <code className="text-amber-300 font-mono">Arek: start</code> lub <code className="text-amber-300 font-mono">Kasia: start</code>.
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             {showWebhookGuide && (
               <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 space-y-2 text-[11px] text-slate-300">
                 <p className="font-semibold text-white">Instrukcja krok po kroku:</p>
@@ -340,7 +390,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   <li>Otwórz Google Chat i wejdź do swojego pokoju/przestrzeni (Space).</li>
                   <li>Kliknij nazwę pokoju u góry &gt; <strong>Aplikacje i integracje</strong> (Apps &amp; integrations).</li>
                   <li>Wybierz <strong>Zarządzaj webhookami</strong> (Manage webhooks) &gt; <strong>Dodaj webhook</strong>.</li>
-                  <li>Nazwij go np. <em>"PrzerwaPro"</em>, kliknij <strong>Zapisz</strong> i skopiuj wygenerowany link.</li>
+                  <li>Wpisz nazwę bota (np. swoje imię lub <em>"PrzerwaPro"</em>), kliknij <strong>Zapisz</strong> i skopiuj wygenerowany link.</li>
                   <li>Wklej skopiowany link w pole poniżej.</li>
                 </ol>
               </div>
@@ -361,14 +411,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             <div>
               <label className="block text-slate-300 font-medium mb-1">
-                Twoje imię / identyfikator (opcjonalnie)
+                Twoje imię / identyfikator
               </label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                   <input
                     type="text"
-                    placeholder="np. Marcin"
+                    placeholder="np. Arek"
                     value={userName}
                     onChange={(e) => setUserName(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
@@ -395,36 +445,70 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800"
                 />
                 <span className="text-slate-200 font-semibold text-xs">
-                  Wysyłaj słowo "start" przy Start i "stop" przy Stop
+                  Wysyłaj proste wiadomości (słowa "start" i "stop")
                 </span>
               </label>
 
               {simpleChatMessages ? (
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Wiadomość po Start:</label>
+                <div className="space-y-2.5 pt-1">
+                  <label className="flex items-start gap-2.5 cursor-pointer pl-6">
                     <input
-                      type="text"
-                      value={startMessageText}
-                      onChange={(e) => setStartMessageText(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
-                      placeholder="start"
+                      type="checkbox"
+                      checked={includeNameInSimpleMessage}
+                      onChange={(e) => setIncludeNameInSimpleMessage(e.target.checked)}
+                      className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
                     />
+                    <div>
+                      <span className="text-slate-200 font-medium text-xs">
+                        Dołączaj imię do wiadomości (np. "{userName.trim() || 'Arek'}: start")
+                      </span>
+                      <span className="text-slate-400 text-[10px] block mt-0.5">
+                        Przydatne, gdy z kolegami w pracy używacie jednego wspólnego webhooka.
+                      </span>
+                    </div>
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2 pl-6">
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Słowo po Start:</label>
+                      <input
+                        type="text"
+                        value={startMessageText}
+                        onChange={(e) => setStartMessageText(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                        placeholder="start"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 text-[11px] mb-1">Słowo po Stop:</label>
+                      <input
+                        type="text"
+                        value={stopMessageText}
+                        onChange={(e) => setStopMessageText(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                        placeholder="stop"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-slate-400 text-[11px] mb-1">Wiadomość po Stop:</label>
-                    <input
-                      type="text"
-                      value={stopMessageText}
-                      onChange={(e) => setStopMessageText(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
-                      placeholder="stop"
-                    />
+
+                  {/* Podgląd na żywo */}
+                  <div className="ml-6 bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                    <span className="text-slate-400 block font-medium text-[10px]">Podgląd wiadomości na Google Chat:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-mono">
+                        ▶ Start: "{includeNameInSimpleMessage && userName.trim() ? `${userName.trim()}: ` : ''}${startMessageText.trim() || 'start'}"
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-rose-400 font-mono">
+                        ⏹ Stop: "{includeNameInSimpleMessage && userName.trim() ? `${userName.trim()}: ` : ''}${stopMessageText.trim() || 'stop'}"
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : (
                 <p className="text-[11px] text-slate-400 pl-6">
-                  W trybie pełnym aplikacja wysyła sformatowaną wiadomość z godziną, minutami i podsumowaniem limitu.
+                  W trybie pełnym aplikacja wysyła sformatowaną wiadomość ze szczegółami, godziną i wyliczonym limitem.
                 </p>
               )}
             </div>

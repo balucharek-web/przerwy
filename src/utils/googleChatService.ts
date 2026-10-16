@@ -12,6 +12,7 @@ export interface SendWebhookParams {
   simpleChatMessages?: boolean;
   startMessageText?: string;
   stopMessageText?: string;
+  includeNameInSimpleMessage?: boolean;
 }
 
 export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<WebhookLog> {
@@ -25,6 +26,7 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     simpleChatMessages = true,
     startMessageText = 'start',
     stopMessageText = 'stop',
+    includeNameInSimpleMessage = false,
   } = params;
 
   if (!webhookUrl || !webhookUrl.trim()) {
@@ -50,11 +52,15 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
   if (action === 'test') {
     messageText = `🔔 *Test webhooka PrzerwaPro*\n👤 Użytkownik: *${userName}*\n✅ Webhook działa poprawnie!\n🕒 Czas: ${timeStr} | ${dateStr}`;
   } else if (simpleChatMessages) {
-    // Exact user requirement: "gdy klikam start to ma się wysyłać start na chacie a gdy stop to ma się wysyłać stop"
-    if (action === 'start') {
-      messageText = (startMessageText && startMessageText.trim()) || 'start';
-    } else if (action === 'stop') {
-      messageText = (stopMessageText && stopMessageText.trim()) || 'stop';
+    // Basic start / stop messages
+    let baseText = action === 'start'
+      ? ((startMessageText && startMessageText.trim()) || 'start')
+      : ((stopMessageText && stopMessageText.trim()) || 'stop');
+
+    if (includeNameInSimpleMessage && userName && userName.trim()) {
+      messageText = `${userName.trim()}: ${baseText}`;
+    } else {
+      messageText = baseText;
     }
   } else {
     // Full report mode

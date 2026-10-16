@@ -45,6 +45,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   startMessageText: 'start',
   stopMessageText: 'stop',
   notificationBarControlsEnabled: true,
+  notificationBarOnlyDuringBreak: true,
+  includeNameInSimpleMessage: false,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -262,6 +264,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         simpleChatMessages: settings.simpleChatMessages,
         startMessageText: settings.startMessageText,
         stopMessageText: settings.stopMessageText,
+        includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
       }).then((log) => addWebhookLog(log));
     }
   };
@@ -283,6 +286,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setBreaks((prev) => [completed, ...prev]);
     setActiveBreak(null);
+    clearSystemNotificationBar();
     playToggleFeedback(false);
 
     const newTotalToday = todayCompletedSeconds + duration;
@@ -299,6 +303,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         simpleChatMessages: settings.simpleChatMessages,
         startMessageText: settings.startMessageText,
         stopMessageText: settings.stopMessageText,
+        includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
       }).then((log) => addWebhookLog(log));
     }
   };
@@ -452,13 +457,18 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Keep system notification bar controls synchronized
   useEffect(() => {
     if (settings.notificationBarControlsEnabled !== false) {
-      updateSystemNotificationBar({
-        isBreakActive: !!activeBreak,
-        currentBreakSeconds,
-        remainingSeconds: todaySummary.remainingSeconds,
-        allowanceSeconds: todaySummary.allowanceSeconds,
-        enabled: true,
-      });
+      if (settings.notificationBarOnlyDuringBreak !== false && !activeBreak) {
+        clearSystemNotificationBar();
+      } else {
+        updateSystemNotificationBar({
+          isBreakActive: !!activeBreak,
+          currentBreakSeconds,
+          remainingSeconds: todaySummary.remainingSeconds,
+          allowanceSeconds: todaySummary.allowanceSeconds,
+          enabled: true,
+          onlyDuringBreak: settings.notificationBarOnlyDuringBreak !== false,
+        });
+      }
     } else {
       clearSystemNotificationBar();
     }
@@ -468,6 +478,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     todaySummary.remainingSeconds,
     todaySummary.allowanceSeconds,
     settings.notificationBarControlsEnabled,
+    settings.notificationBarOnlyDuringBreak,
   ]);
 
   return (

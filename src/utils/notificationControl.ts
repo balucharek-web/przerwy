@@ -17,6 +17,7 @@ export interface NotificationControlState {
   remainingSeconds: number;
   allowanceSeconds: number;
   enabled: boolean;
+  onlyDuringBreak?: boolean;
 }
 
 /**
@@ -44,7 +45,8 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
   if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  if (!state.enabled) {
+  // If controls are disabled, or if configured to only show during active break and no break is active
+  if (!state.enabled || (state.onlyDuringBreak !== false && !state.isBreakActive)) {
     clearSystemNotificationBar();
     return;
   }
@@ -101,6 +103,16 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
  */
 export async function clearSystemNotificationBar() {
   if (typeof window === 'undefined') return;
+
+  if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.playbackState = 'none';
+      navigator.mediaSession.metadata = null;
+    } catch (e) {
+      // Ignore
+    }
+  }
+
   if (!('serviceWorker' in navigator)) return;
 
   try {
