@@ -8,14 +8,12 @@ import {
   Bell, 
   Send, 
   Clock, 
-  HelpCircle, 
   CheckCircle2, 
   AlertCircle, 
   RotateCcw, 
   Download, 
   Upload, 
   User, 
-  Users,
   Trash2,
   ExternalLink,
   Smartphone
@@ -67,7 +65,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     message: string;
   }>({ status: null, message: '' });
 
-  const [showWebhookGuide, setShowWebhookGuide] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -505,55 +502,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
           {/* Section 3: Google Chat Webhook */}
           <div className="space-y-3 pt-2 border-t border-slate-800">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Send className="w-4 h-4" /> Integracja Google Chat (Webhook)
-              </h4>
-              <button
-                type="button"
-                onClick={() => setShowWebhookGuide(!showWebhookGuide)}
-                className="text-[11px] text-blue-400 hover:underline flex items-center gap-1"
-              >
-                <HelpCircle className="w-3 h-3" /> Jak pobrać webhook?
-              </button>
-            </div>
+            <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <Send className="w-4 h-4" /> Integracja Google Chat (Webhook)
+            </h4>
 
-            {/* Box wyjaśniający nazwę bota i udostępnianie kolegom */}
-            <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 space-y-2 text-[11px] text-slate-300">
-              <div className="flex items-start gap-2">
-                <Users className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">Dlaczego bot ma nazwę na czacie i jak udostępnić aplikację kolegom?</p>
-                  <p className="text-slate-300 mt-1 leading-relaxed">
-                    Nazwa bota (np. <em>"odbijacz przerw Arek"</em>) <strong>nie jest narzucona przez aplikację</strong> — została wpisana podczas dodawania Webhooka w pokoju Google Chat.
-                  </p>
+            <div>
+              <label className="block text-slate-300 font-medium mb-1">
+                Twoje imię / identyfikator na czacie
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    placeholder="np. Arek"
+                    value={userName}
+                    onChange={(e) => setUserName(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
+                  />
                 </div>
-              </div>
-              <div className="pl-6 pt-1 space-y-1.5 border-t border-slate-700/60">
-                <p className="font-medium text-amber-300">Jak najlepiej udostępnić aplikację kolegom z pracy?</p>
-                <ul className="list-disc pl-4 space-y-1 text-slate-300">
-                  <li>
-                    <strong>Sposób 1 (Rekomendowany — osobny webhook dla każdego):</strong> W Waszym pokonie na Google Chat każdy kolega może dodać swój webhook (np. <em>"Przerwa Kasia"</em>, <em>"Przerwa Tomek"</em>) i wkleić swój własny link w ustawieniach swojej aplikacji. Każda osoba ma w swojej przeglądarce niezależne dane!
-                  </li>
-                  <li>
-                    <strong>Sposób 2 (Jeden wspólny webhook):</strong> Wszyscy mogą korzystać z tego samego linku webhooka (np. o ogólnej nazwie <em>"Rejestrator Przerw"</em>). Włączcie wtedy opcję <strong>"Dołączaj imię pracownika"</strong> — wtedy wiadomości będą wyglądać np. <code className="text-amber-300 font-mono">Arek: start</code> lub <code className="text-amber-300 font-mono">Kasia: start</code>.
-                  </li>
-                </ul>
+                <button
+                  type="button"
+                  onClick={handleTestWebhook}
+                  disabled={testingWebhook}
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold transition shrink-0 cursor-pointer"
+                >
+                  {testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}
+                </button>
               </div>
             </div>
-
-            {showWebhookGuide && (
-              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700 space-y-2 text-[11px] text-slate-300">
-                <p className="font-semibold text-white">Instrukcja krok po kroku:</p>
-                <ol className="list-decimal pl-4 space-y-1 text-slate-300">
-                  <li>Otwórz Google Chat i wejdź do swojego pokoju/przestrzeni (Space).</li>
-                  <li>Kliknij nazwę pokoju u góry &gt; <strong>Aplikacje i integracje</strong> (Apps &amp; integrations).</li>
-                  <li>Wybierz <strong>Zarządzaj webhookami</strong> (Manage webhooks) &gt; <strong>Dodaj webhook</strong>.</li>
-                  <li>Wpisz nazwę bota (np. swoje imię lub <em>"PrzerwaPro"</em>), kliknij <strong>Zapisz</strong> i skopiuj wygenerowany link.</li>
-                  <li>Wklej skopiowany link w pole poniżej.</li>
-                </ol>
-              </div>
-            )}
 
             <div>
               <label className="block text-slate-300 font-medium mb-1">
