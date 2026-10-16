@@ -65,6 +65,14 @@ function AppContent() {
             url.searchParams.delete('widget');
             window.history.replaceState({}, '', url.toString());
           }}
+          onEnableFloatingMini={() => {
+            setIsDedicatedWidget(false);
+            setIsMiniMode(true);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('mode');
+            url.searchParams.delete('widget');
+            window.history.replaceState({}, '', url.toString());
+          }}
         />
       </>
     );

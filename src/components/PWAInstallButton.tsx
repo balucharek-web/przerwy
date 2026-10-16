@@ -8,12 +8,7 @@ export const PWAInstallButton: React.FC<{ compact?: boolean }> = ({ compact = fa
 
   // If already running as an installed PWA
   if (isInstalled) {
-    return (
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
-        <Smartphone className="w-3.5 h-3.5" />
-        <span>PWA zainstalowane</span>
-      </div>
-    );
+    return null;
   }
 
   // Chromium / Android / Desktop flow
