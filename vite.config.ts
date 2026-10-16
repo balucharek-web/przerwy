@@ -46,6 +46,13 @@ export default defineConfig(() => {
           ],
           shortcuts: [
             {
+              name: 'Widget Start & Stop',
+              short_name: 'Widget',
+              description: 'Jeden widget z dwoma przyciskami Start i Stop',
+              url: './?mode=widget',
+              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
+            },
+            {
               name: 'Rozpocznij przerwę (Start)',
               short_name: 'Start',
               description: 'Szybkie rozpoczęcie przerwy',

@@ -35,6 +35,9 @@ const DEFAULT_SETTINGS: UserSettings = {
   soundAlertsEnabled: true,
   browserNotificationsEnabled: true,
   vibrateEnabled: true,
+  simpleChatMessages: true,
+  startMessageText: 'start',
+  stopMessageText: 'stop',
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -249,6 +252,9 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         action: 'start',
         totalUsedSecondsToday: todayCompletedSeconds,
         dailyAllowanceSeconds: allowanceSeconds,
+        simpleChatMessages: settings.simpleChatMessages,
+        startMessageText: settings.startMessageText,
+        stopMessageText: settings.stopMessageText,
       }).then((log) => addWebhookLog(log));
     }
   };
@@ -283,6 +289,9 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         currentBreakDurationSeconds: duration,
         totalUsedSecondsToday: newTotalToday,
         dailyAllowanceSeconds: allowanceSeconds,
+        simpleChatMessages: settings.simpleChatMessages,
+        startMessageText: settings.startMessageText,
+        stopMessageText: settings.stopMessageText,
       }).then((log) => addWebhookLog(log));
     }
   };

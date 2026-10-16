@@ -16,6 +16,9 @@ export interface UserSettings {
   soundAlertsEnabled: boolean;
   browserNotificationsEnabled: boolean;
   vibrateEnabled: boolean;
+  simpleChatMessages: boolean; // default true: sends literally 'start' / 'stop'
+  startMessageText: string; // default 'start'
+  stopMessageText: string; // default 'stop'
 }
 
 export interface WebhookLog {

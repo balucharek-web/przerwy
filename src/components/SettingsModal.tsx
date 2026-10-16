@@ -44,6 +44,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [resetHour, setResetHour] = useState(settings.resetHour);
   const [soundAlerts, setSoundAlerts] = useState(settings.soundAlertsEnabled);
   const [browserNotifications, setBrowserNotifications] = useState(settings.browserNotificationsEnabled);
+  const [simpleChatMessages, setSimpleChatMessages] = useState(settings.simpleChatMessages ?? true);
+  const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
+  const [stopMessageText, setStopMessageText] = useState(settings.stopMessageText || 'stop');
 
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -65,6 +68,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       resetHour: resetHour || '00:00',
       soundAlertsEnabled: soundAlerts,
       browserNotificationsEnabled: browserNotifications,
+      simpleChatMessages,
+      startMessageText: startMessageText.trim() || 'start',
+      stopMessageText: stopMessageText.trim() || 'stop',
     });
 
     setSaveSuccess(true);
@@ -333,7 +339,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
             <div>
               <label className="block text-slate-300 font-medium mb-1">
-                Twoje imię / identyfikator (będzie widoczne na czacie)
+                Twoje imię / identyfikator (opcjonalnie)
               </label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -355,6 +361,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   {testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}
                 </button>
               </div>
+            </div>
+
+            {/* Treść wiadomości na czacie */}
+            <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/80 space-y-2.5">
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={simpleChatMessages}
+                  onChange={(e) => setSimpleChatMessages(e.target.checked)}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800"
+                />
+                <span className="text-slate-200 font-semibold text-xs">
+                  Wysyłaj słowo "start" przy Start i "stop" przy Stop
+                </span>
+              </label>
+
+              {simpleChatMessages ? (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1">Wiadomość po Start:</label>
+                    <input
+                      type="text"
+                      value={startMessageText}
+                      onChange={(e) => setStartMessageText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                      placeholder="start"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 text-[11px] mb-1">Wiadomość po Stop:</label>
+                    <input
+                      type="text"
+                      value={stopMessageText}
+                      onChange={(e) => setStopMessageText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
+                      placeholder="stop"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 pl-6">
+                  W trybie pełnym aplikacja wysyła sformatowaną wiadomość z godziną, minutami i podsumowaniem limitu.
+                </p>
+              )}
             </div>
 
             {/* Test result message */}

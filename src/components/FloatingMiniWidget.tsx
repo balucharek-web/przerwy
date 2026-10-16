@@ -51,27 +51,35 @@ export const FloatingMiniWidget: React.FC<FloatingMiniWidgetProps> = ({ onExpand
           </div>
         </div>
 
-        {/* 1-Tap Action button */}
-        <div className="flex items-center gap-1.5 pl-1 border-l border-slate-800">
-          {!isBreakActive ? (
-            <button
-              onClick={() => startBreak('MiniWidget')}
-              className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-md shadow-amber-500/20 transition active:scale-95 cursor-pointer"
-              title="Rozpocznij przerwę"
-            >
-              <Play className="w-3.5 h-3.5 fill-slate-950" />
-              <span>START</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => stopBreak()}
-              className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-1 shadow-md shadow-rose-600/20 transition active:scale-95 cursor-pointer"
-              title="Zakończ przerwę"
-            >
-              <Square className="w-3.5 h-3.5 fill-white" />
-              <span>STOP</span>
-            </button>
-          )}
+        {/* Dual START and STOP buttons in one widget */}
+        <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800">
+          <button
+            onClick={() => startBreak('MiniWidget')}
+            disabled={isBreakActive}
+            className={`px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition active:scale-95 ${
+              !isBreakActive
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 cursor-pointer'
+                : 'bg-slate-800 text-slate-600 opacity-40 cursor-not-allowed'
+            }`}
+            title="Rozpocznij przerwę"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>START</span>
+          </button>
+
+          <button
+            onClick={() => stopBreak()}
+            disabled={!isBreakActive}
+            className={`px-2.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1 transition active:scale-95 ${
+              isBreakActive
+                ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20 animate-pulse cursor-pointer'
+                : 'bg-slate-800 text-slate-600 opacity-40 cursor-not-allowed'
+            }`}
+            title="Zakończ przerwę"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+            <span>STOP</span>
+          </button>
 
           <button
             onClick={onExpand}

@@ -11,7 +11,8 @@ import {
   CheckCircle2, 
   AlertCircle, 
   ShieldCheck,
-  Smartphone
+  Smartphone,
+  LayoutGrid
 } from 'lucide-react';
 import { BreakProvider, useBreaks } from './context/BreakContext';
 import { MainBreakTracker } from './components/MainBreakTracker';
@@ -20,6 +21,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { WidgetGuideModal } from './components/WidgetGuideModal';
 import { GitHubGuideModal } from './components/GitHubGuideModal';
 import { FloatingMiniWidget } from './components/FloatingMiniWidget';
+import { DedicatedWidgetView } from './components/DedicatedWidgetView';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
@@ -32,6 +34,11 @@ function AppContent() {
   const [isWidgetGuideOpen, setIsWidgetGuideOpen] = useState(false);
   const [isGitHubGuideOpen, setIsGitHubGuideOpen] = useState(false);
   const [isMiniMode, setIsMiniMode] = useState(false);
+  const [isDedicatedWidget, setIsDedicatedWidget] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'widget' || params.get('widget') === 'true';
+  });
 
   // Check URL parameters for tab navigation
   useEffect(() => {
@@ -43,7 +50,28 @@ function AppContent() {
     } else if (tabParam === 'logs') {
       setActiveTab('logs');
     }
+    if (params.get('mode') === 'widget' || params.get('widget') === 'true') {
+      setIsDedicatedWidget(true);
+    }
   }, []);
+
+  // Dedicated single widget mode containing both buttons
+  if (isDedicatedWidget) {
+    return (
+      <>
+        <OfflineIndicator />
+        <DedicatedWidgetView
+          onBackToApp={() => {
+            setIsDedicatedWidget(false);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('mode');
+            url.searchParams.delete('widget');
+            window.history.replaceState({}, '', url.toString());
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
@@ -55,7 +83,7 @@ function AppContent() {
         <div className="min-h-screen flex items-center justify-center p-6 text-center">
           <div className="space-y-4 max-w-sm">
             <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-400">
-              <p>Aplikacja działa w trybie kompaktowego widgetu w rogu ekranu.</p>
+              <p>Aplikacja działa w trybie pływającego widgetu w rogu ekranu.</p>
               <button
                 onClick={() => setIsMiniMode(false)}
                 className="mt-3 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition"
@@ -92,6 +120,16 @@ function AppContent() {
 
               {/* Action Buttons & Install */}
               <div className="flex items-center gap-2">
+                {/* 1-Tap Widget Mode Button (Start + Stop in one tile) */}
+                <button
+                  onClick={() => setIsDedicatedWidget(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition"
+                  title="Otwórz widok Widgetu (Start + Stop)"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Widget Start/Stop</span>
+                </button>
+
                 {/* PWA Install Button */}
                 <PWAInstallButton compact />
 
@@ -99,7 +137,7 @@ function AppContent() {
                 <button
                   onClick={() => setIsMiniMode(true)}
                   className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition hidden sm:flex"
-                  title="Tryb mini-widgetu"
+                  title="Tryb mini-widgetu na pulpicie"
                 >
                   <Minimize2 className="w-4 h-4" />
                 </button>
@@ -108,7 +146,7 @@ function AppContent() {
                 <button
                   onClick={() => setIsWidgetGuideOpen(true)}
                   className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition"
-                  title="Widget na ekran główny"
+                  title="Instrukcja widgetu na ekran telefonu"
                 >
                   <Layers className="w-4 h-4" />
                 </button>
@@ -204,14 +242,14 @@ function AppContent() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-white">Historia powiadomień Google Chat</h3>
-                      <p className="text-xs text-slate-400">Zdarzenia wysłane po Start i Stop</p>
+                      <p className="text-xs text-slate-400">Komunikaty wysłane po Start i Stop</p>
                     </div>
                   </div>
                   <button
                     onClick={() => setIsSettingsOpen(true)}
                     className="text-xs px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
                   >
-                    Konfiguruj webhook
+                    Konfiguruj
                   </button>
                 </div>
 
@@ -220,7 +258,7 @@ function AppContent() {
                     <Send className="w-8 h-8 text-slate-700" />
                     <span>Brak wysłanych powiadomień w historii sesji.</span>
                     <span className="text-slate-600">
-                      Po dodaniu webhooka każde kliknięcie Start i Stop automatycznie wyśle raport na czat.
+                      Po dodaniu webhooka każde kliknięcie Start i Stop automatycznie wyśle komunikat "start" lub "stop" na czat.
                     </span>
                   </div>
                 ) : (
@@ -275,6 +313,7 @@ function AppContent() {
             isOpen={isWidgetGuideOpen}
             onClose={() => setIsWidgetGuideOpen(false)}
             onToggleMiniMode={() => setIsMiniMode(true)}
+            onOpenDedicatedWidget={() => setIsDedicatedWidget(true)}
           />
 
           <GitHubGuideModal

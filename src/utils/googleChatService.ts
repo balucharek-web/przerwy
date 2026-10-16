@@ -9,6 +9,9 @@ export interface SendWebhookParams {
   currentBreakDurationSeconds?: number;
   totalUsedSecondsToday: number;
   dailyAllowanceSeconds: number;
+  simpleChatMessages?: boolean;
+  startMessageText?: string;
+  stopMessageText?: string;
 }
 
 export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<WebhookLog> {
@@ -19,6 +22,9 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     currentBreakDurationSeconds = 0,
     totalUsedSecondsToday,
     dailyAllowanceSeconds,
+    simpleChatMessages = true,
+    startMessageText = 'start',
+    stopMessageText = 'stop',
   } = params;
 
   if (!webhookUrl || !webhookUrl.trim()) {
@@ -42,34 +48,42 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
   let messageText = '';
 
   if (action === 'test') {
-    messageText = `🔔 *Test połączenia webhooka PrzerwaPro*\n👤 Użytkownik: *${userName}*\n✅ Webhook działa poprawnie! Powiadomienia o przerwach będą pojawiać się tutaj automatycznie.\n🕒 Czas: ${timeStr} | ${dateStr}`;
-  } else if (action === 'start') {
-    const remMinutes = Math.max(0, Math.floor(remainingSeconds / 60));
-    const remSeconds = Math.max(0, remainingSeconds % 60);
+    messageText = `🔔 *Test webhooka PrzerwaPro*\n👤 Użytkownik: *${userName}*\n✅ Webhook działa poprawnie!\n🕒 Czas: ${timeStr} | ${dateStr}`;
+  } else if (simpleChatMessages) {
+    // Exact user requirement: "gdy klikam start to ma się wysyłać start na chacie a gdy stop to ma się wysyłać stop"
+    if (action === 'start') {
+      messageText = (startMessageText && startMessageText.trim()) || 'start';
+    } else if (action === 'stop') {
+      messageText = (stopMessageText && stopMessageText.trim()) || 'stop';
+    }
+  } else {
+    // Full report mode
+    if (action === 'start') {
+      const remMinutes = Math.max(0, Math.floor(remainingSeconds / 60));
+      const remSeconds = Math.max(0, remainingSeconds % 60);
 
-    messageText = `☕ *${userName} rozpoczął przerwę*\n` +
-      `🕒 Czas rozpoczęcia: *${timeStr}*\n` +
-      `📊 Wykorzystano dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
-      `⏳ Pozostały limit: *${remainingSeconds >= 0 ? `${remMinutes}m ${remSeconds}s` : `PRZEKROCZONO o ${Math.abs(Math.floor(remainingSeconds / 60))}m!`}*\n` +
-      `📅 Dzień: ${dateStr}`;
-  } else if (action === 'stop') {
-    const durationMin = Math.floor(currentBreakDurationSeconds / 60);
-    const durationSec = currentBreakDurationSeconds % 60;
-    const remMinutes = Math.max(0, Math.floor(remainingSeconds / 60));
-    const remSeconds = Math.max(0, remainingSeconds % 60);
+      messageText = `☕ *${userName} rozpoczął przerwę*\n` +
+        `🕒 Czas: *${timeStr}*\n` +
+        `📊 Wykorzystano dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
+        `⏳ Pozostały limit: *${remainingSeconds >= 0 ? `${remMinutes}m ${remSeconds}s` : `PRZEKROCZONO o ${Math.abs(Math.floor(remainingSeconds / 60))}m!`}*`;
+    } else if (action === 'stop') {
+      const durationMin = Math.floor(currentBreakDurationSeconds / 60);
+      const durationSec = currentBreakDurationSeconds % 60;
+      const remMinutes = Math.max(0, Math.floor(remainingSeconds / 60));
+      const remSeconds = Math.max(0, remainingSeconds % 60);
 
-    const isOver = remainingSeconds < 0;
-    const statusEmoji = isOver ? '⚠️' : '✅';
+      const isOver = remainingSeconds < 0;
+      const statusEmoji = isOver ? '⚠️' : '✅';
 
-    messageText = `${statusEmoji} *${userName} zakończył przerwę*\n` +
-      `🕒 Czas zakończenia: *${timeStr}*\n` +
-      `⏱️ Czas trwania tej przerwy: *${durationMin}m ${durationSec}s*\n` +
-      `📊 Łącznie dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
-      `⏳ Pozostały limit: *${!isOver ? `${remMinutes}m ${remSeconds}s` : `PRZEKROCZONO o ${Math.abs(Math.floor(remainingSeconds / 60))}m ${Math.abs(remainingSeconds % 60)}s!`}*\n` +
-      `📅 Dzień: ${dateStr}`;
+      messageText = `${statusEmoji} *${userName} zakończył przerwę*\n` +
+        `🕒 Czas: *${timeStr}*\n` +
+        `⏱️ Czas trwania tej przerwy: *${durationMin}m ${durationSec}s*\n` +
+        `📊 Łącznie dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
+        `⏳ Pozostały limit: *${!isOver ? `${remMinutes}m ${remSeconds}s` : `PRZEKROCZONO o ${Math.abs(Math.floor(remainingSeconds / 60))}m ${Math.abs(remainingSeconds % 60)}s!`}*`;
+    }
   }
 
-  // First try backend proxy (to cleanly bypass browser CORS)
+  // First try backend proxy (to cleanly bypass browser CORS when running locally or on server)
   try {
     const res = await fetch('/api/webhook/google-chat', {
       method: 'POST',
@@ -86,14 +100,14 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         timestamp: new Date().toISOString(),
         action,
         status: 'success',
-        message: 'Wiadomość została wysłana na Google Chat.',
+        message: `Wysłano na Google Chat: "${messageText}"`,
       };
     } else {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.error || `HTTP ${res.status}`);
     }
   } catch (proxyError: any) {
-    // If backend proxy failed (e.g. static host), attempt direct fetch
+    // If backend proxy failed (e.g. static hosting on GitHub Pages), attempt direct fetch in no-cors mode
     try {
       await fetch(webhookUrl.trim(), {
         method: 'POST',
@@ -109,7 +123,7 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         timestamp: new Date().toISOString(),
         action,
         status: 'success',
-        message: 'Wysłano bezpośrednio (tryb no-cors).',
+        message: `Wysłano na Google Chat: "${messageText}"`,
       };
     } catch (directError: any) {
       return {
