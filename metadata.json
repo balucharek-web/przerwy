@@ -1,0 +1,10 @@
+{
+  "name": "PrzerwaPro - Rejestrator Przerw PWA",
+  "description": "Aplikacja PWA do rejestrowania przerw w pracy z limitem 30 min, alarmem dźwiękowym, miesięcznym kalendarzem, widgetem na ekran główny oraz integracją z Google Chat.",
+  "requestFramePermissions": [
+    "notifications"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

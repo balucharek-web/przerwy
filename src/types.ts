@@ -1,0 +1,37 @@
+export interface BreakRecord {
+  id: string;
+  startTime: string; // ISO string
+  endTime: string | null; // ISO string or null if currently active
+  durationSeconds: number;
+  note?: string;
+  dayKey: string; // YYYY-MM-DD representing the assigned work day
+}
+
+export interface UserSettings {
+  dailyAllowanceMinutes: number; // default 30
+  warningMinutesBeforeEnd: number; // default 3 (alarm 3 min before end)
+  resetHour: string; // "HH:mm", default "00:00" (midnight)
+  googleChatWebhookUrl: string;
+  googleChatUserName: string;
+  soundAlertsEnabled: boolean;
+  browserNotificationsEnabled: boolean;
+  vibrateEnabled: boolean;
+}
+
+export interface WebhookLog {
+  id: string;
+  timestamp: string;
+  action: 'start' | 'stop' | 'test';
+  status: 'success' | 'error';
+  message: string;
+}
+
+export interface DayBreakSummary {
+  dayKey: string; // YYYY-MM-DD
+  date: Date;
+  breaks: BreakRecord[];
+  totalSeconds: number;
+  allowanceSeconds: number;
+  isOverLimit: boolean;
+  remainingSeconds: number;
+}
