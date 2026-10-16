@@ -4,7 +4,6 @@ import {
   Calendar as CalendarIcon, 
   Settings as SettingsIcon, 
   Layers, 
-  Github, 
   Clock, 
   Send, 
   Minimize2, 
@@ -19,7 +18,6 @@ import { MainBreakTracker } from './components/MainBreakTracker';
 import { BreakCalendar } from './components/BreakCalendar';
 import { SettingsModal } from './components/SettingsModal';
 import { WidgetGuideModal } from './components/WidgetGuideModal';
-import { GitHubGuideModal } from './components/GitHubGuideModal';
 import { FloatingMiniWidget } from './components/FloatingMiniWidget';
 import { DedicatedWidgetView } from './components/DedicatedWidgetView';
 import { PWAInstallButton } from './components/PWAInstallButton';
@@ -32,7 +30,6 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'tracker' | 'calendar' | 'logs'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWidgetGuideOpen, setIsWidgetGuideOpen] = useState(false);
-  const [isGitHubGuideOpen, setIsGitHubGuideOpen] = useState(false);
   const [isMiniMode, setIsMiniMode] = useState(false);
   const [isDedicatedWidget, setIsDedicatedWidget] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -149,15 +146,6 @@ function AppContent() {
                   title="Instrukcja widgetu na ekran telefonu"
                 >
                   <Layers className="w-4 h-4" />
-                </button>
-
-                {/* GitHub Guide */}
-                <button
-                  onClick={() => setIsGitHubGuideOpen(true)}
-                  className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 transition"
-                  title="Wgraj na swój GitHub"
-                >
-                  <Github className="w-4 h-4" />
                 </button>
 
                 {/* Settings */}
@@ -314,11 +302,6 @@ function AppContent() {
             onClose={() => setIsWidgetGuideOpen(false)}
             onToggleMiniMode={() => setIsMiniMode(true)}
             onOpenDedicatedWidget={() => setIsDedicatedWidget(true)}
-          />
-
-          <GitHubGuideModal
-            isOpen={isGitHubGuideOpen}
-            onClose={() => setIsGitHubGuideOpen(false)}
           />
         </>
       )}
