@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
-    base: '/',
+    base: './',
     plugins: [
       react(),
       tailwindcss(),
@@ -14,7 +14,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          id: '/',
+          id: './',
           name: 'PrzerwaPro - Rejestrator Przerw',
           short_name: 'PrzerwaPro',
           description: 'Aplikacja PWA do rejestrowania przerw w pracy z limitem 30 min, alarmem dźwiękowym i kalendarzem.',
@@ -22,23 +22,23 @@ export default defineConfig(() => {
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: '/',
-          scope: '/',
+          start_url: './',
+          scope: './',
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: './pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: './pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: './pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -49,34 +49,37 @@ export default defineConfig(() => {
               name: 'Widget Start & Stop',
               short_name: 'Widget',
               description: 'Jeden widget z dwoma przyciskami Start i Stop',
-              url: '/?mode=widget',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+              url: './?mode=widget',
+              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Rozpocznij przerwę (Start)',
               short_name: 'Start',
               description: 'Szybkie rozpoczęcie przerwy',
-              url: '/?action=start',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+              url: './?action=start',
+              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Zakończ przerwę (Stop)',
               short_name: 'Stop',
               description: 'Zakończenie aktywnej przerwy',
-              url: '/?action=stop',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+              url: './?action=stop',
+              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Miesięczny Kalendarz',
               short_name: 'Kalendarz',
               description: 'Zobacz historię przerw',
-              url: '/?tab=calendar',
-              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
+              url: './?tab=calendar',
+              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
             },
           ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          skipWaiting: true,
+          clientsClaim: true,
+          cleanupOutdatedCaches: true,
         },
         devOptions: {
           enabled: true,
@@ -92,7 +95,6 @@ export default defineConfig(() => {
     server: {
       port: 3000,
       host: '0.0.0.0',
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
       hmr: process.env.DISABLE_HMR !== 'true',
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
