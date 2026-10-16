@@ -89,18 +89,17 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     }
   }
 
-  // First try backend proxy (to cleanly bypass browser CORS when running locally or on server)
+  // 1. Direct fetch to Google Chat Webhook (Google Chat supports CORS natively)
   try {
-    const res = await fetch('/api/webhook/google-chat', {
+    const directRes = await fetch(webhookUrl.trim(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        webhookUrl: webhookUrl.trim(),
-        text: messageText,
-      }),
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify({ text: messageText }),
     });
 
-    if (res.ok) {
+    if (directRes.ok) {
       return {
         id: Math.random().toString(36).substring(2),
         timestamp: new Date().toISOString(),
@@ -109,21 +108,25 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         message: `Wysłano na Google Chat: "${messageText}"`,
       };
     } else {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errText = await directRes.text().catch(() => '');
+      console.warn('Google Chat direct response error:', directRes.status, errText);
     }
-  } catch (proxyError: any) {
-    // If backend proxy failed (e.g. static hosting on GitHub Pages), attempt direct fetch in no-cors mode
-    try {
-      await fetch(webhookUrl.trim(), {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'text/plain',
-        },
-        body: JSON.stringify({ text: messageText }),
-      });
+  } catch (directErr) {
+    console.warn('Direct fetch to Google Chat failed, attempting proxy fallback:', directErr);
+  }
 
+  // 2. Fallback: try backend proxy (if running in full-stack Node.js environment)
+  try {
+    const proxyRes = await fetch('/api/webhook/google-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webhookUrl: webhookUrl.trim(),
+        text: messageText,
+      }),
+    });
+
+    if (proxyRes.ok) {
       return {
         id: Math.random().toString(36).substring(2),
         timestamp: new Date().toISOString(),
@@ -131,14 +134,17 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         status: 'success',
         message: `Wysłano na Google Chat: "${messageText}"`,
       };
-    } catch (directError: any) {
-      return {
-        id: Math.random().toString(36).substring(2),
-        timestamp: new Date().toISOString(),
-        action,
-        status: 'error',
-        message: `Błąd wysyłania: ${proxyError.message || directError.message || 'Nieznany błąd'}`,
-      };
+    } else {
+      const errorData = await proxyRes.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${proxyRes.status}`);
     }
+  } catch (proxyError: any) {
+    return {
+      id: Math.random().toString(36).substring(2),
+      timestamp: new Date().toISOString(),
+      action,
+      status: 'error',
+      message: `Błąd wysyłania: ${proxyError.message || 'Nie udało się dostarczyć wiadomości'}`,
+    };
   }
 }
