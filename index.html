@@ -22,6 +22,20 @@
     
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    
+    <!-- Suppress Vite HMR WebSocket connection warnings in iframe environment -->
+    <script>
+      window.addEventListener('error', function(event) {
+        if (event && event.message && event.message.includes('WebSocket')) {
+          event.stopImmediatePropagation();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event && event.reason && event.reason.message && event.reason.message.includes('WebSocket')) {
+          event.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-500/30 selection:text-amber-200">
     <div id="root"></div>
