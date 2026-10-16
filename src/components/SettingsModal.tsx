@@ -42,7 +42,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     importDataJSON,
   } = useBreaks();
 
-  const [webhookUrl, setWebhookUrl] = useState(settings.googleChatWebhookUrl);
   const [userName, setUserName] = useState(settings.googleChatUserName);
   const [dailyAllowance, setDailyAllowance] = useState(settings.dailyAllowanceMinutes);
   const [warningMinutes, setWarningMinutes] = useState(settings.warningMinutesBeforeEnd);
@@ -62,20 +61,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [vibrateOnlyWhenScreenLocked, setVibrateOnlyWhenScreenLocked] = useState(settings.vibrateOnlyWhenScreenLocked ?? true);
   const [countdownVibrationIntervalMinutes, setCountdownVibrationIntervalMinutes] = useState(settings.countdownVibrationIntervalMinutes ?? 1);
 
-  const [testingWebhook, setTestingWebhook] = useState(false);
-  const [webhookTestResult, setWebhookTestResult] = useState<{
-    status: 'success' | 'error' | null;
-    message: string;
-  }>({ status: null, message: '' });
-
-  const [showWebhookUrlInput, setShowWebhookUrlInput] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSaveAll = () => {
     updateSettings({
-      googleChatWebhookUrl: webhookUrl.trim(),
       googleChatUserName: userName.trim() || 'Pracownik',
       dailyAllowanceMinutes: Number(dailyAllowance) || 30,
       warningMinutesBeforeEnd: Number(warningMinutes) || 3,
@@ -100,42 +91,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setSaveSuccess(false);
       onClose();
     }, 600);
-  };
-
-  const handleTestWebhook = async () => {
-    if (!webhookUrl.trim()) {
-      setWebhookTestResult({
-        status: 'error',
-        message: 'Podaj adres URL webhooka Google Chat przed testem.',
-      });
-      return;
-    }
-
-    // Temporarily save to settings so testWebhook uses it
-    updateSettings({
-      googleChatWebhookUrl: webhookUrl.trim(),
-      googleChatUserName: userName.trim() || 'Pracownik',
-    });
-
-    setTestingWebhook(true);
-    setWebhookTestResult({ status: null, message: '' });
-
-    try {
-      const result = await testWebhook();
-      setWebhookTestResult({
-        status: result.status,
-        message: result.status === 'success' 
-          ? 'Sukces! Sprawdź swój kanał na Google Chat.' 
-          : result.message,
-      });
-    } catch (e: any) {
-      setWebhookTestResult({
-        status: 'error',
-        message: e.message || 'Wystąpił błąd podczas testowania.',
-      });
-    } finally {
-      setTestingWebhook(false);
-    }
   };
 
   const handleRequestNotificationPermission = async () => {
@@ -507,71 +462,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           {/* Section 3: Google Chat Webhook */}
           <div className="space-y-3 pt-2 border-t border-slate-800">
             <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Send className="w-4 h-4" /> Integracja Google Chat (Webhook)
+              <Send className="w-4 h-4" /> Integracja Google Chat
             </h4>
 
-            {/* Pojedyncze pole: Twoje imię + przycisk Testuj */}
+            {/* Pojedyncze pole: Twoje imię (bez webhooka i bez przycisku testuj) */}
             <div>
               <label className="block text-slate-300 font-medium mb-1 text-xs">
                 Twoje imię / podpis na czacie
               </label>
-              <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="np. Arek"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestWebhook}
-                  disabled={testingWebhook}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold transition shrink-0 cursor-pointer text-xs flex items-center gap-1.5"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Zabezpieczony podgląd webhooka (ukryty URL aby nikt go przypadkowo nie zmienił) */}
-            <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-                <span className="text-slate-300 text-[11px] font-medium">
-                  Webhook zespołu: <span className="text-emerald-400 font-semibold">{webhookUrl ? '✓ Podłączony' : 'Brak'}</span>
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowWebhookUrlInput(!showWebhookUrlInput)}
-                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition cursor-pointer"
-              >
-                <Lock className="w-3 h-3 text-amber-400/80" />
-                <span>{showWebhookUrlInput ? 'Zwiń adres' : 'Zmień adres URL'}</span>
-                {showWebhookUrlInput ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
-            </div>
-
-            {/* Rozwijane pole adresu webhooka (tylko na żądanie) */}
-            {showWebhookUrlInput && (
-              <div className="space-y-1.5 bg-slate-900/90 p-3 rounded-xl border border-slate-800 animate-fade-in">
-                <label className="block text-slate-400 text-[11px] font-medium">
-                  Adres URL Webhooka Google Chat (chroniony przed przypadkową zmianą):
-                </label>
+              <div className="relative">
+                <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
                 <input
-                  type="url"
-                  placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=..."
-                  value={webhookUrl}
-                  onChange={(e) => setWebhookUrl(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono text-[10px] focus:outline-none focus:border-amber-500"
+                  type="text"
+                  placeholder="np. Arek"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
                 />
               </div>
-            )}
+            </div>
 
             {/* Treść wiadomości na czacie */}
             <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/80 space-y-2.5">
@@ -650,24 +559,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </p>
               )}
             </div>
-
-            {/* Test result message */}
-            {webhookTestResult.status && (
-              <div
-                className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 ${
-                  webhookTestResult.status === 'success'
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-                    : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-                }`}
-              >
-                {webhookTestResult.status === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                )}
-                <span>{webhookTestResult.message}</span>
-              </div>
-            )}
           </div>
 
           {/* Section 4: Data Management & Backup */}
