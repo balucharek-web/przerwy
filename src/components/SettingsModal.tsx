@@ -47,6 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [simpleChatMessages, setSimpleChatMessages] = useState(settings.simpleChatMessages ?? true);
   const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
   const [stopMessageText, setStopMessageText] = useState(settings.stopMessageText || 'stop');
+  const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
 
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState<{
@@ -71,6 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       simpleChatMessages,
       startMessageText: startMessageText.trim() || 'start',
       stopMessageText: stopMessageText.trim() || 'stop',
+      notificationBarControlsEnabled: notificationBarControls,
     });
 
     setSaveSuccess(true);
@@ -263,7 +265,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   onChange={(e) => setBrowserNotifications(e.target.checked)}
                   className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800"
                 />
-                <span className="text-slate-300 font-medium">Powiadomienia systemowe na ekranie</span>
+                <span className="text-slate-300 font-medium">Powiadomienia systemowe o alarmach</span>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <input
+                  type="checkbox"
+                  checked={notificationBarControls}
+                  onChange={(e) => {
+                    setNotificationBarControls(e.target.checked);
+                    if (e.target.checked) {
+                      handleRequestNotificationPermission();
+                    }
+                  }}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                />
+                <div>
+                  <span className="text-amber-300 font-bold block text-xs">Pasek powiadomień ze sterowaniem START / STOP (Android)</span>
+                  <span className="text-slate-400 text-[11px] block mt-0.5">
+                    Wyświetla stałą belkę powiadomień w telefonie z przyciskami START i STOP, działającymi bezpośrednio z wysuwanego paska powiadomień i ekranu blokady.
+                  </span>
+                </div>
               </label>
             </div>
 

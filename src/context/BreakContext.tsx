@@ -3,6 +3,12 @@ import { BreakRecord, UserSettings, WebhookLog, DayBreakSummary } from '../types
 import { getDayKey } from '../utils/dateUtils';
 import { playWarningAlarm, playLimitReachedAlarm, playToggleFeedback, sendSystemNotification } from '../utils/audioAlert';
 import { sendGoogleChatWebhook } from '../utils/googleChatService';
+import { 
+  updateSystemNotificationBar, 
+  clearSystemNotificationBar, 
+  getControlChannel, 
+  requestNotificationPermission 
+} from '../utils/notificationControl';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -38,6 +44,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   simpleChatMessages: true,
   startMessageText: 'start',
   stopMessageText: 'stop',
+  notificationBarControlsEnabled: true,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -403,6 +410,65 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.history.replaceState({}, '', url.toString());
     }
   }, []);
+
+  // Handle background notification clicks & broadcast channel triggers
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const channel = getControlChannel();
+    const handleActionMessage = (action: string) => {
+      if (action === 'start') {
+        startBreak('Pasek powiadomień');
+      } else if (action === 'stop') {
+        stopBreak();
+      }
+    };
+
+    if (channel) {
+      channel.onmessage = (event) => {
+        if (event.data && event.data.type === 'NOTIFICATION_ACTION') {
+          handleActionMessage(event.data.action);
+        }
+      };
+    }
+
+    const swMessageHandler = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'NOTIFICATION_ACTION') {
+        handleActionMessage(event.data.action);
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', swMessageHandler);
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', swMessageHandler);
+      }
+    };
+  }, [startBreak, stopBreak]);
+
+  // Keep system notification bar controls synchronized
+  useEffect(() => {
+    if (settings.notificationBarControlsEnabled !== false) {
+      updateSystemNotificationBar({
+        isBreakActive: !!activeBreak,
+        currentBreakSeconds,
+        remainingSeconds: todaySummary.remainingSeconds,
+        allowanceSeconds: todaySummary.allowanceSeconds,
+        enabled: true,
+      });
+    } else {
+      clearSystemNotificationBar();
+    }
+  }, [
+    activeBreak,
+    currentBreakSeconds,
+    todaySummary.remainingSeconds,
+    todaySummary.allowanceSeconds,
+    settings.notificationBarControlsEnabled,
+  ]);
 
   return (
     <BreakContext.Provider

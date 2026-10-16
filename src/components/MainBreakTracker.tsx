@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel } from '../utils/dateUtils';
+import { requestNotificationPermission } from '../utils/notificationControl';
 
 interface MainBreakTrackerProps {
   onOpenCalendar: () => void;
@@ -38,6 +39,7 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
     deleteBreak,
     addManualBreak,
     lastWebhookStatus,
+    updateSettings,
   } = useBreaks();
 
   const [noteInput, setNoteInput] = useState('');
@@ -304,6 +306,50 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
             <span>Kliknij, aby podpiąć webhook Google Chat</span>
           </button>
         )}
+      </div>
+
+      {/* Notification Bar Controls Card (Option 1) */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-start sm:items-center gap-3">
+          <div className={`p-2.5 rounded-xl shrink-0 ${settings.notificationBarControlsEnabled !== false ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30' : 'bg-slate-800 text-slate-500'}`}>
+            <Bell className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-white font-bold text-xs">Pasek powiadomień ze sterowaniem START/STOP</span>
+              {settings.notificationBarControlsEnabled !== false ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30">
+                  Aktywne
+                </span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-semibold">
+                  Wyłączone
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Steruj przerwą bezpośrednio z wysuwanego paska Androida i ekranu blokady bez wchodzenia do aplikacji.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={async () => {
+            const newState = settings.notificationBarControlsEnabled === false;
+            if (newState) {
+              await requestNotificationPermission();
+            }
+            updateSettings({ notificationBarControlsEnabled: newState });
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
+            settings.notificationBarControlsEnabled !== false
+              ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+              : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+          }`}
+        >
+          {settings.notificationBarControlsEnabled !== false ? 'Wyłącz' : 'Włącz przyciski'}
+        </button>
       </div>
 
       {/* Quick Summary Grid */}

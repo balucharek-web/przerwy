@@ -19,6 +19,7 @@ export interface UserSettings {
   simpleChatMessages: boolean; // default true: sends literally 'start' / 'stop'
   startMessageText: string; // default 'start'
   stopMessageText: string; // default 'stop'
+  notificationBarControlsEnabled?: boolean; // default true: shows start/stop persistent notification bar controls
 }
 
 export interface WebhookLog {

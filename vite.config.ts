@@ -80,6 +80,7 @@ export default defineConfig(() => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
+          importScripts: ['./sw-actions.js'],
         },
         devOptions: {
           enabled: true,
