@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
   X, 
   Settings, 
+  Volume1,
   Volume2, 
   VolumeX, 
   Bell, 
@@ -44,6 +45,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [warningMinutes, setWarningMinutes] = useState(settings.warningMinutesBeforeEnd);
   const [resetHour, setResetHour] = useState(settings.resetHour);
   const [soundAlerts, setSoundAlerts] = useState(settings.soundAlertsEnabled);
+  const [alarmVolume, setAlarmVolume] = useState(settings.alarmVolume ?? 80);
   const [browserNotifications, setBrowserNotifications] = useState(settings.browserNotificationsEnabled);
   const [simpleChatMessages, setSimpleChatMessages] = useState(settings.simpleChatMessages ?? true);
   const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
@@ -71,6 +73,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       warningMinutesBeforeEnd: Number(warningMinutes) || 3,
       resetHour: resetHour || '00:00',
       soundAlertsEnabled: soundAlerts,
+      alarmVolume: Number(alarmVolume),
       browserNotificationsEnabled: browserNotifications,
       simpleChatMessages,
       startMessageText: startMessageText.trim() || 'start',
@@ -263,6 +266,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <span className="text-slate-300 font-medium">Dźwięki alarmów przez głośnik / słuchawki</span>
               </label>
 
+              {soundAlerts && (
+                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-300 font-medium flex items-center gap-2 text-xs">
+                      {alarmVolume === 0 ? (
+                        <VolumeX className="w-4 h-4 text-rose-400" />
+                      ) : alarmVolume < 50 ? (
+                        <Volume1 className="w-4 h-4 text-amber-400" />
+                      ) : (
+                        <Volume2 className="w-4 h-4 text-amber-400" />
+                      )}
+                      <span>Głośność dźwięków i alarmów</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-400 font-mono font-bold text-xs bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-700">
+                        {alarmVolume}%
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVol = alarmVolume === 0 ? 80 : 0;
+                          setAlarmVolume(newVol);
+                        }}
+                        className="text-[10px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-700/50 hover:bg-slate-700 transition"
+                      >
+                        {alarmVolume === 0 ? 'Włącz dźwięk' : 'Wycisz'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <VolumeX className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={alarmVolume}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setAlarmVolume(val);
+                      }}
+                      className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                    <Volume2 className="w-4 h-4 text-amber-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400 block">
+                    Reguluje siłę głośności alarmu 3 minuty przed końcem oraz alarmu o wykorzystaniu 30 minut.
+                  </span>
+                </div>
+              )}
+
               <label className="flex items-center gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
@@ -319,7 +374,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => testSoundAlarm('warning')}
+                onClick={() => testSoundAlarm('warning', alarmVolume)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition"
               >
                 <Volume2 className="w-3.5 h-3.5" />
@@ -327,7 +382,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </button>
               <button
                 type="button"
-                onClick={() => testSoundAlarm('final')}
+                onClick={() => testSoundAlarm('final', alarmVolume)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700 transition"
               >
                 <Volume2 className="w-3.5 h-3.5" />

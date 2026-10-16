@@ -14,6 +14,7 @@ export interface UserSettings {
   googleChatWebhookUrl: string;
   googleChatUserName: string;
   soundAlertsEnabled: boolean;
+  alarmVolume?: number; // 0 to 100, default 80
   browserNotificationsEnabled: boolean;
   vibrateEnabled: boolean;
   simpleChatMessages: boolean; // default true: sends literally 'start' / 'stop'

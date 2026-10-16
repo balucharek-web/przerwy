@@ -13,10 +13,72 @@ function getAudioContext(): AudioContext {
   return audioCtx;
 }
 
+function normalizeVolume(volume?: number): number {
+  if (volume === undefined || volume === null) return 0.8;
+  const num = Number(volume);
+  if (isNaN(num)) return 0.8;
+  return Math.max(0, Math.min(100, num)) / 100;
+}
+
+let silentAudioEl: HTMLAudioElement | null = null;
+const SILENT_WAV_DATA_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+
 /**
- * Plays a distinct 3-minute warning alarm (two-tone chime sequence)
+ * Starts silent looping audio to maintain background execution on Android / mobile browsers
+ * so notifications and timers keep advancing even when the user switches to other apps.
  */
-export function playWarningAlarm() {
+export function startBackgroundKeepAlive() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!silentAudioEl) {
+      silentAudioEl = new Audio(SILENT_WAV_DATA_URI);
+      silentAudioEl.loop = true;
+      silentAudioEl.volume = 0.01;
+      silentAudioEl.setAttribute('playsinline', '');
+      silentAudioEl.setAttribute('webkit-playsinline', '');
+    }
+    const playPromise = silentAudioEl.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Autoplay may need user gesture, will retry on next user tap
+      });
+    }
+  } catch (e) {
+    // Ignore
+  }
+
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+  } catch (e) {
+    // Ignore
+  }
+}
+
+/**
+ * Stops silent background audio keep-alive when break ends
+ */
+export function stopBackgroundKeepAlive() {
+  if (typeof window === 'undefined') return;
+  try {
+    if (silentAudioEl) {
+      silentAudioEl.pause();
+      silentAudioEl.currentTime = 0;
+    }
+  } catch (e) {
+    // Ignore
+  }
+}
+
+/**
+ * Plays a distinct 3-minute warning alarm (two-tone chime sequence) with volume control
+ */
+export function playWarningAlarm(volume: number = 80) {
+  const vol = normalizeVolume(volume);
+  if (vol <= 0) return;
+
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -28,8 +90,9 @@ export function playWarningAlarm() {
       osc.type = type;
       osc.frequency.setValueAtTime(freq, start);
 
+      const targetGain = Math.max(0.001, 0.35 * vol);
       gain.gain.setValueAtTime(0.001, start);
-      gain.gain.exponentialRampToValueAtTime(0.35, start + 0.05);
+      gain.gain.exponentialRampToValueAtTime(targetGain, start + 0.05);
       gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
 
       osc.connect(gain);
@@ -59,9 +122,12 @@ export function playWarningAlarm() {
 }
 
 /**
- * Plays an urgent limit-reached alarm (when break limit is 0 / fully used)
+ * Plays an urgent limit-reached alarm (when break limit is 0 / fully used) with volume control
  */
-export function playLimitReachedAlarm() {
+export function playLimitReachedAlarm(volume: number = 80) {
+  const vol = normalizeVolume(volume);
+  if (vol <= 0) return;
+
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -75,8 +141,9 @@ export function playLimitReachedAlarm() {
       osc.frequency.setValueAtTime(900, startTime);
       osc.frequency.exponentialRampToValueAtTime(450, startTime + 0.18);
 
-      gain.gain.setValueAtTime(0.3, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.22);
+      const targetGain = Math.max(0.001, 0.3 * vol);
+      gain.gain.setValueAtTime(targetGain, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.22);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -94,9 +161,12 @@ export function playLimitReachedAlarm() {
 }
 
 /**
- * Subtle feedback sound on start or stop
+ * Subtle feedback sound on start or stop with volume control
  */
-export function playToggleFeedback(isStart: boolean) {
+export function playToggleFeedback(isStart: boolean, volume: number = 80) {
+  const vol = normalizeVolume(volume);
+  if (vol <= 0) return;
+
   try {
     const ctx = getAudioContext();
     const now = ctx.currentTime;
@@ -112,7 +182,8 @@ export function playToggleFeedback(isStart: boolean) {
       osc.frequency.exponentialRampToValueAtTime(440, now + 0.15); // A4
     }
 
-    gain.gain.setValueAtTime(0.15, now);
+    const targetGain = Math.max(0.001, 0.15 * vol);
+    gain.gain.setValueAtTime(targetGain, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
 
     osc.connect(gain);

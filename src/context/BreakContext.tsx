@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useMemo } from 'react';
 import { BreakRecord, UserSettings, WebhookLog, DayBreakSummary } from '../types';
 import { getDayKey } from '../utils/dateUtils';
-import { playWarningAlarm, playLimitReachedAlarm, playToggleFeedback, sendSystemNotification } from '../utils/audioAlert';
+import { 
+  playWarningAlarm, 
+  playLimitReachedAlarm, 
+  playToggleFeedback, 
+  sendSystemNotification,
+  startBackgroundKeepAlive,
+  stopBackgroundKeepAlive
+} from '../utils/audioAlert';
 import { sendGoogleChatWebhook } from '../utils/googleChatService';
 import { 
   updateSystemNotificationBar, 
@@ -26,7 +33,7 @@ interface BreakContextType {
   clearTodayBreaks: () => void;
   clearAllHistory: () => void;
   testWebhook: () => Promise<WebhookLog>;
-  testSoundAlarm: (type: 'warning' | 'final') => void;
+  testSoundAlarm: (type: 'warning' | 'final', volume?: number) => void;
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
@@ -39,6 +46,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   googleChatWebhookUrl: '',
   googleChatUserName: 'Pracownik',
   soundAlertsEnabled: true,
+  alarmVolume: 80,
   browserNotificationsEnabled: true,
   vibrateEnabled: true,
   simpleChatMessages: true,
@@ -148,9 +156,15 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Timer interval for active break
+  // Timer interval for active break with Web Worker & background keep-alive
   useEffect(() => {
-    if (!activeBreak) return;
+    if (!activeBreak) {
+      stopBackgroundKeepAlive();
+      return;
+    }
+
+    // Keep background audio active on mobile devices
+    startBackgroundKeepAlive();
 
     const updateTimer = () => {
       const startMs = new Date(activeBreak.startTime).getTime();
@@ -160,8 +174,65 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
+
+    // Listen to visibilitychange so returning to the app immediately recalculates exact seconds
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateTimer();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    let worker: Worker | null = null;
+    let fallbackInterval: any = null;
+
+    try {
+      const workerCode = `
+        let timer = null;
+        self.onmessage = function(e) {
+          if (e.data === 'start') {
+            if (timer) clearInterval(timer);
+            timer = setInterval(function() {
+              self.postMessage('tick');
+            }, 1000);
+          } else if (e.data === 'stop') {
+            if (timer) {
+              clearInterval(timer);
+              timer = null;
+            }
+          }
+        };
+      `;
+      const blob = new Blob([workerCode], { type: 'application/javascript' });
+      const workerUrl = URL.createObjectURL(blob);
+      worker = new Worker(workerUrl);
+
+      worker.onmessage = () => {
+        updateTimer();
+      };
+      worker.postMessage('start');
+
+      // Also standard interval
+      fallbackInterval = setInterval(updateTimer, 1000);
+
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        if (worker) {
+          worker.postMessage('stop');
+          worker.terminate();
+          URL.revokeObjectURL(workerUrl);
+        }
+        if (fallbackInterval) {
+          clearInterval(fallbackInterval);
+        }
+      };
+    } catch (e) {
+      fallbackInterval = setInterval(updateTimer, 1000);
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        clearInterval(fallbackInterval);
+      };
+    }
   }, [activeBreak]);
 
   // Current day key based on resetHour
@@ -208,7 +279,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       !warningAlarmFiredRef.current
     ) {
       warningAlarmFiredRef.current = true;
-      playWarningAlarm();
+      playWarningAlarm(settings.alarmVolume ?? 80);
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⚠️ Zbliża się koniec przerwy!', {
@@ -221,7 +292,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // 2. Check 0 min limit alarm
     if (remainingSeconds <= 0 && !limitAlarmFiredRef.current) {
       limitAlarmFiredRef.current = true;
-      playLimitReachedAlarm();
+      playLimitReachedAlarm(settings.alarmVolume ?? 80);
 
       if (settings.browserNotificationsEnabled) {
         sendSystemNotification('⏰ Limit przerwy wykorzystany!', {
@@ -251,7 +322,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     warningAlarmFiredRef.current = false;
     limitAlarmFiredRef.current = false;
     setActiveBreak(newBreak);
-    playToggleFeedback(true);
+    playToggleFeedback(true, settings.alarmVolume ?? 80);
 
     if (settings.googleChatWebhookUrl) {
       setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
@@ -287,7 +358,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setBreaks((prev) => [completed, ...prev]);
     setActiveBreak(null);
     clearSystemNotificationBar();
-    playToggleFeedback(false);
+    stopBackgroundKeepAlive();
+    playToggleFeedback(false, settings.alarmVolume ?? 80);
 
     const newTotalToday = todayCompletedSeconds + duration;
 
@@ -362,11 +434,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return log;
   };
 
-  const testSoundAlarm = (type: 'warning' | 'final') => {
+  const testSoundAlarm = (type: 'warning' | 'final', volume?: number) => {
+    const vol = volume !== undefined ? volume : (settings.alarmVolume ?? 80);
     if (type === 'warning') {
-      playWarningAlarm();
+      playWarningAlarm(vol);
     } else {
-      playLimitReachedAlarm();
+      playLimitReachedAlarm(vol);
     }
   };
 

@@ -37,6 +37,27 @@ export async function requestNotificationPermission(): Promise<boolean> {
   return false;
 }
 
+let lastNotificationUpdateMs = 0;
+let mediaSessionHandlersBound = false;
+
+function bindMediaSessionHandlers() {
+  if (mediaSessionHandlersBound) return;
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+  try {
+    const handleStop = () => {
+      const channel = getControlChannel();
+      if (channel) {
+        channel.postMessage({ type: 'NOTIFICATION_ACTION', action: 'stop' });
+      }
+    };
+    navigator.mediaSession.setActionHandler('stop', handleStop);
+    navigator.mediaSession.setActionHandler('pause', handleStop);
+    mediaSessionHandlersBound = true;
+  } catch (e) {
+    // Ignore
+  }
+}
+
 /**
  * Updates the persistent system notification bar with START / STOP action buttons
  */
@@ -51,7 +72,15 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     return;
   }
 
+  // Throttle notification updates to at most once per 800ms
+  const now = Date.now();
+  if (state.isBreakActive && now - lastNotificationUpdateMs < 800) {
+    return;
+  }
+  lastNotificationUpdateMs = now;
+
   try {
+    bindMediaSessionHandlers();
     const reg = await navigator.serviceWorker.ready;
     if (!reg || !reg.showNotification) return;
 
