@@ -16,7 +16,10 @@ import {
   User, 
   Trash2,
   ExternalLink,
-  Smartphone
+  Smartphone,
+  Lock,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
@@ -65,6 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     message: string;
   }>({ status: null, message: '' });
 
+  const [showWebhookUrlInput, setShowWebhookUrlInput] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -506,9 +510,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               <Send className="w-4 h-4" /> Integracja Google Chat (Webhook)
             </h4>
 
+            {/* Pojedyncze pole: Twoje imię + przycisk Testuj */}
             <div>
-              <label className="block text-slate-300 font-medium mb-1">
-                Twoje imię / identyfikator na czacie
+              <label className="block text-slate-300 font-medium mb-1 text-xs">
+                Twoje imię / podpis na czacie
               </label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -525,51 +530,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   type="button"
                   onClick={handleTestWebhook}
                   disabled={testingWebhook}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold transition shrink-0 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold transition shrink-0 cursor-pointer text-xs flex items-center gap-1.5"
                 >
-                  {testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}</span>
                 </button>
               </div>
             </div>
 
-            <div>
-              <label className="block text-slate-300 font-medium mb-1">
-                Adres URL Webhooka Google Chat
-              </label>
-              <input
-                type="url"
-                placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=..."
-                value={webhookUrl}
-                onChange={(e) => setWebhookUrl(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:outline-none focus:border-amber-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-300 font-medium mb-1">
-                Twoje imię / identyfikator
-              </label>
+            {/* Zabezpieczony podgląd webhooka (ukryty URL aby nikt go przypadkowo nie zmienił) */}
+            <div className="p-2.5 rounded-xl bg-slate-800/60 border border-slate-700/80 flex items-center justify-between text-xs">
               <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                  <User className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    placeholder="np. Arek"
-                    value={userName}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs focus:outline-none focus:border-amber-500"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestWebhook}
-                  disabled={testingWebhook}
-                  className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold transition shrink-0"
-                >
-                  {testingWebhook ? 'Wysyłam...' : 'Testuj webhook'}
-                </button>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                <span className="text-slate-300 text-[11px] font-medium">
+                  Webhook zespołu: <span className="text-emerald-400 font-semibold">{webhookUrl ? '✓ Podłączony' : 'Brak'}</span>
+                </span>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowWebhookUrlInput(!showWebhookUrlInput)}
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1 transition cursor-pointer"
+              >
+                <Lock className="w-3 h-3 text-amber-400/80" />
+                <span>{showWebhookUrlInput ? 'Zwiń adres' : 'Zmień adres URL'}</span>
+                {showWebhookUrlInput ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </button>
             </div>
+
+            {/* Rozwijane pole adresu webhooka (tylko na żądanie) */}
+            {showWebhookUrlInput && (
+              <div className="space-y-1.5 bg-slate-900/90 p-3 rounded-xl border border-slate-800 animate-fade-in">
+                <label className="block text-slate-400 text-[11px] font-medium">
+                  Adres URL Webhooka Google Chat (chroniony przed przypadkową zmianą):
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=...&token=..."
+                  value={webhookUrl}
+                  onChange={(e) => setWebhookUrl(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-200 font-mono text-[10px] focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            )}
 
             {/* Treść wiadomości na czacie */}
             <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/80 space-y-2.5">
