@@ -3,8 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // Suppress Vite HMR WebSocket connection errors as specified by environment guidelines
       (function() {
+        // Intercept Vite HMR WebSocket in Cloud Run iframe environment
+        const OriginalWebSocket = window.WebSocket;
+        if (OriginalWebSocket) {
+          function ViteSafeWebSocket(url, protocols) {
+            const isViteHmr = protocols === 'vite-hmr' || 
+              (Array.isArray(protocols) && protocols.includes('vite-hmr')) ||
+              (typeof url === 'string' && (url.includes('vite-hmr') || url.includes('/@vite/')));
+            
+            if (isViteHmr) {
+              const target = new EventTarget();
+              const mock = {
+                url,
+                protocols,
+                readyState: 1, // OPEN
+                bufferedAmount: 0,
+                extensions: '',
+                protocol: 'vite-hmr',
+                binaryType: 'blob',
+                send: function() {},
+                close: function() {
+                  mock.readyState = 3;
+                },
+                addEventListener: function(type, listener, options) {
+                  target.addEventListener(type, listener, options);
+                  if (type === 'open') {
+                    setTimeout(() => {
+                      const ev = new Event('open');
+                      target.dispatchEvent(ev);
+                      if (typeof mock.onopen === 'function') mock.onopen(ev);
+                    }, 0);
+                  }
+                },
+                removeEventListener: function(type, listener, options) {
+                  target.removeEventListener(type, listener, options);
+                },
+                dispatchEvent: function(event) {
+                  return target.dispatchEvent(event);
+                },
+                onopen: null,
+                onclose: null,
+                onerror: null,
+                onmessage: null,
+              };
+              Object.setPrototypeOf(mock, OriginalWebSocket.prototype);
+              return mock;
+            }
+            return new OriginalWebSocket(url, protocols);
+          }
+
+          ViteSafeWebSocket.prototype = OriginalWebSocket.prototype;
+          ViteSafeWebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+          ViteSafeWebSocket.OPEN = OriginalWebSocket.OPEN;
+          ViteSafeWebSocket.CLOSING = OriginalWebSocket.CLOSING;
+          ViteSafeWebSocket.CLOSED = OriginalWebSocket.CLOSED;
+          window.WebSocket = ViteSafeWebSocket;
+        }
+
         const origError = console.error;
         console.error = function(...args) {
           const str = args.map(a => {
