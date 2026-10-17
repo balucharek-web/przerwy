@@ -20,103 +20,38 @@ function normalizeVolume(volume?: number): number {
   return Math.max(0, Math.min(100, num)) / 100;
 }
 
-let silentAudioEl: HTMLAudioElement | null = null;
-let silentAudioUrl: string | null = null;
+let keepAliveOsc: OscillatorNode | null = null;
+let keepAliveGain: GainNode | null = null;
 
 /**
- * Creates a valid 10-second 8-bit mono PCM audio Blob with imperceptible sub-audible micro-oscillation.
- * Unlike flat 0-sample silence which Android DSP power-saving detects and puts to sleep,
- * this tiny 12Hz dither keeps the Android MediaSession service and background timer active
- * continuously without producing any audible sound on phone speakers.
- */
-function getSilentAudioUrl(): string {
-  if (silentAudioUrl) return silentAudioUrl;
-  try {
-    const sampleRate = 8000;
-    const numSamples = sampleRate * 10; // 10 seconds
-    const buffer = new ArrayBuffer(44 + numSamples);
-    const view = new DataView(buffer);
-
-    const writeString = (offset: number, str: string) => {
-      for (let i = 0; i < str.length; i++) {
-        view.setUint8(offset + i, str.charCodeAt(i));
-      }
-    };
-
-    // RIFF identifier
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + numSamples, true);
-    writeString(8, 'WAVE');
-
-    // fmt subchunk
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true); // Subchunk1Size
-    view.setUint16(20, 1, true); // PCM format
-    view.setUint16(22, 1, true); // Mono (1 channel)
-    view.setUint32(24, sampleRate, true); // Sample rate (8000 Hz)
-    view.setUint32(28, sampleRate, true); // Byte rate (8000 * 1 * 1)
-    view.setUint16(32, 1, true); // Block align
-    view.setUint16(34, 8, true); // Bits per sample (8-bit)
-
-    // data subchunk
-    writeString(36, 'data');
-    view.setUint32(40, numSamples, true);
-
-    // Sub-audible 12Hz micro-sine wave (swings +/- 1 from 128: 127..129)
-    // 12Hz is below human hearing (20Hz+) and phone speakers cannot physically reproduce it,
-    // but Android hardware audio pipeline detects non-zero PCM and keeps the media session 100% active.
-    const samples = new Uint8Array(buffer, 44, numSamples);
-    for (let i = 0; i < numSamples; i++) {
-      samples[i] = 128 + Math.round(Math.sin((2 * Math.PI * 12 * i) / sampleRate));
-    }
-
-    const blob = new Blob([buffer], { type: 'audio/wav' });
-    silentAudioUrl = URL.createObjectURL(blob);
-    return silentAudioUrl;
-  } catch {
-    // Fallback minimal URI
-    return 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
-  }
-}
-
-/**
- * Starts silent looping audio to maintain background execution on Android / mobile browsers
- * so notifications and timers keep advancing even when the user switches apps or locks screen.
+ * Starts silent Web Audio keep-alive to maintain background execution on Android / mobile browsers.
+ * CRITICAL: We use Web Audio API (AudioContext) instead of an HTML <audio> element.
+ * Playing an HTML <audio> element causes Android Chrome to spawn a duplicate Media Player notification!
+ * Web Audio API keeps the background audio thread active WITHOUT creating any media player widget!
  */
 export function startBackgroundKeepAlive() {
   if (typeof window === 'undefined') return;
   try {
-    if (!silentAudioEl) {
-      silentAudioEl = new Audio();
-      silentAudioEl.src = getSilentAudioUrl();
-      silentAudioEl.loop = true;
-      silentAudioEl.volume = 0.05;
-      silentAudioEl.setAttribute('playsinline', '');
-      silentAudioEl.setAttribute('webkit-playsinline', '');
-    }
-    
-    // Ensure src is set
-    if (!silentAudioEl.src) {
-      silentAudioEl.src = getSilentAudioUrl();
-    }
-
-    const playPromise = silentAudioEl.play();
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        console.warn('Silent audio keep-alive play deferred until user interaction:', err);
-      });
-    }
-  } catch (e) {
-    // Ignore
-  }
-
-  try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
-      ctx.resume();
+      ctx.resume().catch(() => {});
+    }
+
+    if (!keepAliveOsc) {
+      keepAliveOsc = ctx.createOscillator();
+      keepAliveGain = ctx.createGain();
+
+      // Sub-audible 12Hz sine wave with tiny gain (0.0001)
+      keepAliveOsc.type = 'sine';
+      keepAliveOsc.frequency.setValueAtTime(12, ctx.currentTime);
+      keepAliveGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+
+      keepAliveOsc.connect(keepAliveGain);
+      keepAliveGain.connect(ctx.destination);
+      keepAliveOsc.start();
     }
   } catch (e) {
-    // Ignore
+    // Ignore keep-alive errors
   }
 }
 
@@ -126,9 +61,14 @@ export function startBackgroundKeepAlive() {
 export function stopBackgroundKeepAlive() {
   if (typeof window === 'undefined') return;
   try {
-    if (silentAudioEl) {
-      silentAudioEl.pause();
-      silentAudioEl.currentTime = 0;
+    if (keepAliveOsc) {
+      keepAliveOsc.stop();
+      keepAliveOsc.disconnect();
+      keepAliveOsc = null;
+    }
+    if (keepAliveGain) {
+      keepAliveGain.disconnect();
+      keepAliveGain = null;
     }
   } catch (e) {
     // Ignore

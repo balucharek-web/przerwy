@@ -14,7 +14,8 @@ import {
   updateSystemNotificationBar, 
   clearSystemNotificationBar, 
   getControlChannel, 
-  requestNotificationPermission 
+  requestNotificationPermission,
+  bindMediaSessionHandlers
 } from '../utils/notificationControl';
 import {
   triggerHaptic,
@@ -53,6 +54,8 @@ interface BreakContextType {
   dismissUndo: () => void;
 }
 
+import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
+
 export const TEAM_SHARED_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAAA94ZyILs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=aoQFsSDKoYcofsyF4Cd1cynnTkNShzZDilpkNcJ4j2c';
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -75,6 +78,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   notificationBarOnlyDuringBreak: true,
   includeNameInSimpleMessage: true,
   keepScreenAwakeDuringBreak: false,
+  pocketLockEnabled: true,
+  appBadgeEnabled: true,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -180,8 +185,14 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       limitAlarmFiredRef.current = false;
       lastVibratedMinuteRef.current = -1;
       setCurrentBreakSeconds(0);
+      clearAppBadge();
     }
   }, [activeBreak]);
+
+  // Ensure Chrome never displays duplicate media player widget
+  useEffect(() => {
+    bindMediaSessionHandlers();
+  }, []);
 
   // Save logs
   useEffect(() => {
@@ -341,6 +352,16 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       remainingSeconds,
     };
   }, [currentDayKey, todayCompletedBreaks, totalUsedSecondsToday, allowanceSeconds, remainingSeconds]);
+
+  // Keep App Badge synchronized with remaining minutes on phone home screen icon
+  useEffect(() => {
+    if (settings.appBadgeEnabled !== false && activeBreak) {
+      const remainingMinutes = Math.max(0, Math.ceil(todaySummary.remainingSeconds / 60));
+      updateAppBadge(remainingMinutes);
+    } else {
+      clearAppBadge();
+    }
+  }, [activeBreak, todaySummary.remainingSeconds, settings.appBadgeEnabled]);
 
   // Sound & Vibration Alarm Monitor: Checks 3 min warning and limit reached
   useEffect(() => {

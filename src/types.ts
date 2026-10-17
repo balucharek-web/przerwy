@@ -27,6 +27,8 @@ export interface UserSettings {
   notificationBarControlsEnabled?: boolean; // default true: shows start/stop notification bar controls
   notificationBarOnlyDuringBreak?: boolean; // default true: shows notification ONLY while break is active, disappears on stop
   keepScreenAwakeDuringBreak?: boolean; // default false: keeps screen awake during break (Wake Lock API)
+  pocketLockEnabled?: boolean; // default true: prevents accidental taps in pocket (hold to start/stop)
+  appBadgeEnabled?: boolean; // default true: displays remaining break minutes badge on home screen app icon
 }
 
 export interface WebhookLog {

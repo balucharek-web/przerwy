@@ -45,47 +45,31 @@ let lastNotificationUpdateMs = 0;
 let mediaSessionHandlersBound = false;
 
 export function bindMediaSessionHandlers() {
-  if (mediaSessionHandlersBound) return;
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
   try {
-    const handleStop = () => {
-      const channel = getControlChannel();
-      if (channel) {
-        channel.postMessage({ type: 'NOTIFICATION_ACTION', action: 'stop' });
-      }
-    };
-    const handleStart = () => {
-      const channel = getControlChannel();
-      if (channel) {
-        channel.postMessage({ type: 'NOTIFICATION_ACTION', action: 'start' });
-      }
-    };
-    navigator.mediaSession.setActionHandler('stop', handleStop);
-    navigator.mediaSession.setActionHandler('pause', handleStop);
-    navigator.mediaSession.setActionHandler('play', handleStart);
-    // Allow scrubbing buttons on lock screen to also cleanly stop break
-    try {
-      navigator.mediaSession.setActionHandler('seekbackward', handleStop);
-      navigator.mediaSession.setActionHandler('previoustrack', handleStop);
-    } catch {
-      // Optional handlers
-    }
-    mediaSessionHandlersBound = true;
-  } catch (e) {
-    // Ignore
-  }
+    // Explicitly unbind all mediaSession handlers so Chrome NEVER shows the media player notification
+    const actions: MediaSessionAction[] = ['play', 'pause', 'stop', 'seekbackward', 'seekforward', 'previoustrack', 'nexttrack'];
+    actions.forEach((act) => {
+      try {
+        navigator.mediaSession.setActionHandler(act, null);
+      } catch {}
+    });
+    navigator.mediaSession.playbackState = 'none';
+    navigator.mediaSession.metadata = null;
+  } catch {}
 }
 
 let lastNotificationBreakState: boolean | null = null;
 let lastNotifiedMinute: number = -1;
 
 /**
- * Updates the lock screen media session widget and system notification bar
+ * Updates the system notification bar with real-time countdown.
+ * Strictly ONE persistent notification card is shown (NO duplicate Chrome media player).
  */
 export async function updateSystemNotificationBar(state: NotificationControlState, forceUpdate = false) {
   if (typeof window === 'undefined') return;
 
-  // 1. Ensure duplicate Chrome media player is NEVER shown (strictly ONE notification timer requested)
+  // 1. Ensure duplicate Chrome media player is NEVER shown
   if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
     try {
       navigator.mediaSession.playbackState = 'none';
@@ -105,19 +89,11 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
   if (Notification.permission !== 'granted') return;
 
   const now = Date.now();
-  const currentMinute = Math.floor(state.currentBreakSeconds / 60);
   const stateChanged = lastNotificationBreakState !== state.isBreakActive;
-
-  // Throttle notification updates:
-  // Calling showNotification every single second causes Android NotificationManager rate-limiting,
-  // high CPU overhead, and severe stuttering when the user switches apps.
-  // Instead:
-  // - Update immediately on state change (start / stop) or forceUpdate
-  // - Update every minute on minute boundary
-  // - Or at least once every 8 seconds
   const elapsedSinceLast = now - lastNotificationUpdateMs;
-  const isMinuteBoundary = currentMinute !== lastNotifiedMinute;
-  const shouldUpdate = forceUpdate || stateChanged || isMinuteBoundary || elapsedSinceLast >= 8000;
+
+  // Update in REAL TIME: every 1 second (1000ms) or immediately when state changes or forced
+  const shouldUpdate = forceUpdate || stateChanged || elapsedSinceLast >= 1000;
 
   if (!shouldUpdate && state.isBreakActive) {
     return;
@@ -125,7 +101,6 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
 
   lastNotificationUpdateMs = now;
   lastNotificationBreakState = state.isBreakActive;
-  lastNotifiedMinute = currentMinute;
 
   try {
     const reg = await navigator.serviceWorker.ready;

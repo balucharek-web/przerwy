@@ -15,11 +15,152 @@ import {
   History,
   ChevronDown,
   Moon,
-  X
+  X,
+  Lock,
+  Unlock,
+  Smartphone,
+  ShieldCheck,
+  Info
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
 import { requestNotificationPermission } from '../utils/notificationControl';
+
+interface HoldButtonProps {
+  isStop?: boolean;
+  onConfirm: () => void;
+  enabled: boolean;
+  className?: string;
+  children?: React.ReactNode;
+}
+
+const HoldButton: React.FC<HoldButtonProps> = ({ isStop, onConfirm, enabled, className, children }) => {
+  const [progress, setProgress] = useState(0);
+  const [isPressing, setIsPressing] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  const timerRef = React.useRef<any>(null);
+  const startTimeRef = React.useRef<number>(0);
+
+  const HOLD_DURATION_MS = 750;
+
+  const startHold = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!enabled) {
+      onConfirm();
+      return;
+    }
+    if ('button' in e && (e as React.MouseEvent).button !== 0) return;
+
+    setIsPressing(true);
+    startTimeRef.current = Date.now();
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try {
+        navigator.vibrate(20);
+      } catch {}
+    }
+
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const pct = Math.min(100, Math.round((elapsed / HOLD_DURATION_MS) * 100));
+      setProgress(pct);
+      if (pct >= 100) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        setIsPressing(false);
+        setProgress(0);
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+          try {
+            navigator.vibrate([60, 40, 100]);
+          } catch {}
+        }
+        onConfirm();
+      }
+    }, 25);
+  };
+
+  const cancelHold = () => {
+    if (!enabled) return;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (isPressing && progress < 100) {
+      setShowHint(true);
+      setTimeout(() => setShowHint(false), 2200);
+    }
+    setIsPressing(false);
+    setProgress(0);
+  };
+
+  return (
+    <div className="relative w-full">
+      <button
+        type="button"
+        onMouseDown={startHold}
+        onMouseUp={cancelHold}
+        onMouseLeave={cancelHold}
+        onTouchStart={startHold}
+        onTouchEnd={cancelHold}
+        onTouchCancel={cancelHold}
+        onContextMenu={(e) => {
+          if (enabled) e.preventDefault();
+        }}
+        className={
+          className ||
+          `relative w-full py-4 px-6 rounded-2xl text-lg font-black tracking-wide shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer select-none overflow-hidden touch-manipulation ${
+            isStop
+              ? 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white shadow-rose-600/30'
+              : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/25'
+          }`
+        }
+      >
+        {enabled && isPressing && (
+          <div
+            className={`absolute inset-0 pointer-events-none transition-all duration-75 ${
+              isStop ? 'bg-white/30' : 'bg-slate-950/25'
+            }`}
+            style={{ width: `${progress}%` }}
+          />
+        )}
+
+        {children || (
+          <>
+            {isStop ? (
+              <>
+                <Square className="w-6 h-6 fill-white z-10 shrink-0" />
+                <span className="z-10 tracking-tight">
+                  {enabled && isPressing
+                    ? `PRZYTRZYMAJ... ${progress}%`
+                    : enabled
+                    ? 'ZAKOŃCZ PRZERWĘ (PRZYTRZYMAJ)'
+                    : 'ZAKOŃCZ PRZERWĘ (STOP)'}
+                </span>
+              </>
+            ) : (
+              <>
+                <Play className="w-6 h-6 fill-slate-950 z-10 shrink-0" />
+                <span className="z-10 tracking-tight">
+                  {enabled && isPressing
+                    ? `PRZYTRZYMAJ... ${progress}%`
+                    : enabled
+                    ? 'ROZPOCZNIJ PRZERWĘ (PRZYTRZYMAJ)'
+                    : 'ROZPOCZNIJ PRZERWĘ (START)'}
+                </span>
+              </>
+            )}
+          </>
+        )}
+      </button>
+
+      {showHint && enabled && (
+        <div className="absolute -top-11 left-1/2 -translate-x-1/2 bg-amber-400 text-slate-950 font-bold text-xs py-1.5 px-3.5 rounded-full shadow-xl whitespace-nowrap animate-bounce z-20 flex items-center gap-1.5 border border-amber-300">
+          <Lock className="w-3.5 h-3.5" />
+          <span>Przytrzymaj 1 sek (ochrona w kieszeni aktywna)</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface MainBreakTrackerProps {
   onOpenCalendar: () => void;
@@ -249,22 +390,17 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
         {/* Big Action Button (START / STOP) */}
         <div className="w-full mt-4 flex flex-col gap-3">
           {!isBreakActive ? (
-            <button
-              onClick={handleStart}
-              className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-lg font-black tracking-wide shadow-lg shadow-amber-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer"
-            >
-              <Play className="w-6 h-6 fill-slate-950" />
-              <span>ROZPOCZNIJ PRZERWĘ (START)</span>
-            </button>
+            <HoldButton
+              onConfirm={handleStart}
+              enabled={settings.pocketLockEnabled !== false}
+            />
           ) : (
             <div className="flex flex-col gap-2 w-full">
-              <button
-                onClick={handleStop}
-                className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-lg font-black tracking-wide shadow-lg shadow-rose-600/30 active:scale-[0.98] transition-all flex items-center justify-center gap-3 cursor-pointer animate-pulse"
-              >
-                <Square className="w-6 h-6 fill-white" />
-                <span>ZAKOŃCZ PRZERWĘ (STOP)</span>
-              </button>
+              <HoldButton
+                isStop
+                onConfirm={handleStop}
+                enabled={settings.pocketLockEnabled !== false}
+              />
 
               {/* Subtelna, zwijana korekta czasu (nie zaśmieca widoku) */}
               <div className="flex flex-col items-center w-full">
@@ -346,6 +482,31 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
               </div>
             </div>
           )}
+          {/* Pocket Lock Quick Toggle for Smartphone */}
+          <div className="flex items-center justify-center w-full pt-1 px-1">
+            <button
+              type="button"
+              onClick={() => updateSettings({ pocketLockEnabled: settings.pocketLockEnabled === false ? true : false })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold border transition cursor-pointer select-none active:scale-95 ${
+                settings.pocketLockEnabled !== false
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                  : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+              title="Zabezpiecza przed przypadkowym dotknięciem w kieszeni - wymaga przytrzymania przycisku"
+            >
+              {settings.pocketLockEnabled !== false ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>🔒 Ochrona w kieszeni: WŁ</span>
+                </>
+              ) : (
+                <>
+                  <Unlock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                  <span>🔓 Ochrona: WYŁ (1 tap)</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -696,22 +857,19 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
           {/* Bottom Action Button */}
           <div className="w-full max-w-md mx-auto space-y-3">
             {!isBreakActive ? (
-              <button
-                onClick={handleStart}
+              <HoldButton
+                onConfirm={handleStart}
+                enabled={settings.pocketLockEnabled !== false}
                 className="w-full py-5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xl tracking-wider shadow-lg shadow-amber-500/25 flex items-center justify-center gap-3 transition active:scale-95 cursor-pointer"
-              >
-                <Play className="w-7 h-7 fill-slate-950" />
-                <span>ROZPOCZNIJ PRZERWĘ</span>
-              </button>
+              />
             ) : (
               <div className="space-y-2">
-                <button
-                  onClick={handleStop}
-                  className="w-full py-5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xl tracking-wider shadow-lg shadow-rose-600/30 flex items-center justify-center gap-3 transition active:scale-95 cursor-pointer animate-pulse"
-                >
-                  <Square className="w-7 h-7 fill-white" />
-                  <span>ZAKOŃCZ PRZERWĘ</span>
-                </button>
+                <HoldButton
+                  isStop
+                  onConfirm={handleStop}
+                  enabled={settings.pocketLockEnabled !== false}
+                  className="w-full py-5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xl tracking-wider shadow-lg shadow-rose-600/30 flex items-center justify-center gap-3 transition active:scale-95 cursor-pointer"
+                />
                 <div className="flex justify-center gap-2">
                   <button
                     onClick={() => handleStopWithAdjustment(5)}
@@ -731,6 +889,7 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
           </div>
         </div>
       )}
+
     </div>
   );
 };
