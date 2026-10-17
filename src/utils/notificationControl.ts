@@ -85,8 +85,13 @@ let lastNotifiedMinute: number = -1;
 export async function updateSystemNotificationBar(state: NotificationControlState, forceUpdate = false) {
   if (typeof window === 'undefined') return;
 
-  // 1. ALWAYS update Android/iOS Lock Screen MediaSession controls (renders native lock screen player!)
-  updateMediaSessionControls(state);
+  // 1. Ensure duplicate Chrome media player is NEVER shown (strictly ONE notification timer requested)
+  if (typeof navigator !== 'undefined' && 'mediaSession' in navigator) {
+    try {
+      navigator.mediaSession.playbackState = 'none';
+      navigator.mediaSession.metadata = null;
+    } catch {}
+  }
 
   // 2. Check if persistent notification bar is enabled and break is active
   if (!state.enabled || (state.onlyDuringBreak !== false && !state.isBreakActive)) {
@@ -127,9 +132,13 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     if (!reg || !reg.showNotification) return;
 
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
+    
+    // Construct robust appBase supporting both GitHub Pages subpath (/przerwy/) and root (/)
     const origin = window.location.origin;
-    const iconUrl = `${origin}/pwa-192x192.png`;
-    const badgeUrl = `${origin}/icon.svg`;
+    const cleanPath = window.location.pathname.replace(/\/+$/, '');
+    const appBase = `${origin}${cleanPath}`;
+    const iconUrl = `${appBase}/pwa-192x192.png`;
+    const badgeUrl = `${appBase}/icon.svg`;
 
     // Calculate estimated return time and start time
     const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
@@ -228,52 +237,12 @@ export async function clearSystemNotificationBar() {
  * This renders the native lock-screen player with current ticking time,
  * remaining time, return time, and Pause/Stop buttons!
  */
-export function updateMediaSessionControls(state: NotificationControlState) {
+export function updateMediaSessionControls(_state: NotificationControlState) {
+  // Disabled: Strictly ONE notification bar timer (the notification card with the STOP button),
+  // rather than having a duplicate Chrome media player widget.
   if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-
   try {
-    bindMediaSessionHandlers();
-
-    const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
-
-    if (!isBreakActive) {
-      navigator.mediaSession.playbackState = 'none';
-      navigator.mediaSession.metadata = null;
-      return;
-    }
-
-    const now = Date.now();
-    const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
-    const returnTimeStr = `${String(returnDate.getHours()).padStart(2, '0')}:${String(returnDate.getMinutes()).padStart(2, '0')}`;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-
-    // Pass absolute URLs for lock-screen artwork so Android system UI can load them properly
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (Zostało: ${formatDuration(remainingSeconds)})`,
-      artist: `🔔 Powrót do pracy: ${returnTimeStr} • Dzienny limit: ${formatDuration(allowanceSeconds)}`,
-      album: 'PrzerwaPro (Naciśnij Pauza/Stop aby zakończyć)',
-      artwork: [
-        { src: `${origin}/pwa-192x192.png`, sizes: '192x192', type: 'image/png' },
-        { src: `${origin}/pwa-512x512.png`, sizes: '512x512', type: 'image/png' },
-      ],
-    });
-
-    navigator.mediaSession.playbackState = 'playing';
-
-    // setPositionState instructs Android OS to animate the real-time progress bar natively!
-    if ('setPositionState' in navigator.mediaSession) {
-      try {
-        const totalDuration = Math.max(allowanceSeconds, currentBreakSeconds + 1);
-        navigator.mediaSession.setPositionState({
-          duration: Math.max(1, totalDuration),
-          playbackRate: 1,
-          position: Math.min(totalDuration, Math.max(0, currentBreakSeconds)),
-        });
-      } catch (e) {
-        // Ignore
-      }
-    }
-  } catch (e) {
-    // Ignore
-  }
+    navigator.mediaSession.playbackState = 'none';
+    navigator.mediaSession.metadata = null;
+  } catch {}
 }

@@ -307,9 +307,11 @@ export async function sendSystemNotification(title: string, options?: ExtendedNo
   }
 
   const origin = window.location.origin;
+  const cleanPath = window.location.pathname.replace(/\/+$/, '');
+  const appBase = `${origin}${cleanPath}`;
   const notificationOptions: any = {
-    icon: `${origin}/pwa-192x192.png`,
-    badge: `${origin}/icon.svg`,
+    icon: `${appBase}/pwa-192x192.png`,
+    badge: `${appBase}/icon.svg`,
     vibrate: [400, 150, 400, 150, 600],
     visibility: 'public',
     ...options,
