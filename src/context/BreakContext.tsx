@@ -51,6 +51,8 @@ interface BreakContextType {
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
+  fastForwardSeconds: (seconds: number) => void;
+  jumpToAlarmTest: (mode: 'warning' | 'limit') => void;
   undoState: { type: 'start' | 'stop'; label: string; timestamp: number } | null;
   undoLastAction: () => void;
   dismissUndo: () => void;
@@ -671,6 +673,75 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const fastForwardSeconds = (sec: number) => {
+    if (!activeBreak) {
+      startBreak('Symulacja podglądu');
+      setTimeout(() => {
+        setActiveBreak((prev) => {
+          if (!prev) return null;
+          const currentStart = new Date(prev.startTime).getTime();
+          return {
+            ...prev,
+            startTime: new Date(currentStart - sec * 1000).toISOString(),
+          };
+        });
+      }, 60);
+      return;
+    }
+
+    setActiveBreak((prev) => {
+      if (!prev) return null;
+      const currentStart = new Date(prev.startTime).getTime();
+      return {
+        ...prev,
+        startTime: new Date(currentStart - sec * 1000).toISOString(),
+      };
+    });
+  };
+
+  const jumpToAlarmTest = (mode: 'warning' | 'limit') => {
+    const allowanceSec = settings.dailyAllowanceMinutes * 60;
+    const warningSec = settings.warningMinutesBeforeEnd * 60;
+    const alreadyUsed = todayCompletedSeconds;
+
+    // Remaining seconds before warning: (allowanceSec - alreadyUsed) - warningSec
+    // To trigger warning in 10 seconds:
+    const targetElapsedSeconds = mode === 'warning'
+      ? Math.max(0, allowanceSec - alreadyUsed - warningSec - 10)
+      : Math.max(0, allowanceSec - alreadyUsed - 10);
+
+    const newStartTime = new Date(Date.now() - targetElapsedSeconds * 1000).toISOString();
+
+    if (mode === 'warning') {
+      warningAlarmFiredRef.current = false;
+    } else {
+      limitAlarmFiredRef.current = false;
+    }
+
+    if (!activeBreak) {
+      const now = new Date();
+      const dayKey = getDayKey(now, settings.resetHour);
+      const newBreak: BreakRecord = {
+        id: `brk_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        startTime: newStartTime,
+        endTime: null,
+        durationSeconds: targetElapsedSeconds,
+        note: `Test (${mode === 'warning' ? 'ostrzeżenie 3 min' : 'limit 30 min'})`,
+        dayKey,
+      };
+      setActiveBreak(newBreak);
+      startBackgroundKeepAlive();
+    } else {
+      setActiveBreak((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          startTime: newStartTime,
+        };
+      });
+    }
+  };
+
   const exportDataJSON = () => {
     return JSON.stringify(
       {
@@ -825,6 +896,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         lastWebhookStatus,
         exportDataJSON,
         importDataJSON,
+        fastForwardSeconds,
+        jumpToAlarmTest,
         undoState,
         undoLastAction,
         dismissUndo,

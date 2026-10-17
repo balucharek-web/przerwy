@@ -83,6 +83,9 @@ export function playWarningAlarm(volume: number = 80) {
   if (vol <= 0) return;
 
   try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-sound', { detail: { type: 'warning', volume, timestamp: Date.now() } }));
+    }
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
       ctx.resume();
@@ -139,6 +142,9 @@ export function playLimitReachedAlarm(volume: number = 80) {
   if (vol <= 0) return;
 
   try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-sound', { detail: { type: 'limit', volume, timestamp: Date.now() } }));
+    }
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
       ctx.resume();
@@ -228,7 +234,35 @@ export interface ExtendedNotificationOptions extends NotificationOptions {
 }
 
 export async function sendSystemNotification(title: string, options?: ExtendedNotificationOptions): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const origin = window.location.origin;
+  const cleanPath = window.location.pathname.replace(/\/+$/, '');
+  const appBase = `${origin}${cleanPath}`;
+  const notificationOptions: any = {
+    icon: `${appBase}/pwa-192x192.png`,
+    badge: `${appBase}/icon.svg`,
+    vibrate: [400, 150, 400, 150, 600],
+    visibility: 'public',
+    ...options,
+  };
+
+  // Always dispatch in-app notification event for preview simulation
+  try {
+    window.dispatchEvent(
+      new CustomEvent('app-notification', {
+        detail: {
+          title,
+          options: notificationOptions,
+          timestamp: Date.now(),
+        },
+      })
+    );
+  } catch {}
+
+  if (!('Notification' in window)) {
     return false;
   }
 
@@ -245,17 +279,6 @@ export async function sendSystemNotification(title: string, options?: ExtendedNo
   if (permission !== 'granted') {
     return false;
   }
-
-  const origin = window.location.origin;
-  const cleanPath = window.location.pathname.replace(/\/+$/, '');
-  const appBase = `${origin}${cleanPath}`;
-  const notificationOptions: any = {
-    icon: `${appBase}/pwa-192x192.png`,
-    badge: `${appBase}/icon.svg`,
-    vibrate: [400, 150, 400, 150, 600],
-    visibility: 'public',
-    ...options,
-  };
 
   // 1. Try Service Worker showNotification (works on Android Chrome!)
   if ('serviceWorker' in navigator) {

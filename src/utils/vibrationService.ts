@@ -59,6 +59,12 @@ export function triggerHaptic(
     playHapticAudioPop();
   }
 
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('app-vibration', { detail: { pattern, timestamp: Date.now() } }));
+    } catch {}
+  }
+
   if (!isVibrationSupported()) {
     return false;
   }

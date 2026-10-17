@@ -25,6 +25,7 @@ import { WidgetGuideModal } from './components/WidgetGuideModal';
 import { ShareModal } from './components/ShareModal';
 import { FloatingMiniWidget } from './components/FloatingMiniWidget';
 import { DedicatedWidgetView } from './components/DedicatedWidgetView';
+import { LiveTestPlayground } from './components/LiveTestPlayground';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
@@ -231,6 +232,12 @@ function AppContent() {
           )}
         </>
       )}
+
+      {/* Live Interactive Testing Playground & Simulator */}
+      <LiveTestPlayground
+        onOpenWidgetMode={() => setIsDedicatedWidget(true)}
+        onOpenShareModal={() => setIsShareOpen(true)}
+      />
     </div>
   );
 }
