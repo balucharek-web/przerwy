@@ -29,6 +29,7 @@ export interface UserSettings {
   keepScreenAwakeDuringBreak?: boolean; // default false: keeps screen awake during break (Wake Lock API)
   pocketLockEnabled?: boolean; // default true: prevents accidental taps in pocket (hold to start/stop)
   appBadgeEnabled?: boolean; // default true: displays remaining break minutes badge on home screen app icon
+  serverPushEnabled?: boolean; // default true: schedules server-side Web Push alarms as a safety net
 }
 
 export interface WebhookLog {

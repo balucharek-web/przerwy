@@ -1,4 +1,50 @@
-// Service Worker background action listener for Android Notification Bar controls
+// Service Worker background action listener for Android Notification Bar & Web Push controls
+
+// 1. Listen to incoming Web Push notifications from server
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: '🔔 Powiadomienie PrzerwaPro',
+    body: 'Powiadomienie z rejestratora przerw',
+    tag: 'break-web-push',
+    icon: '/pwa-192x192.png',
+    badge: '/icon.svg',
+    vibrate: [500, 200, 500, 200, 500],
+    data: { url: '/?mode=widget' },
+  };
+
+  if (event.data) {
+    try {
+      const json = event.data.json();
+      payload = { ...payload, ...json };
+    } catch (e) {
+      payload.body = event.data.text();
+    }
+  }
+
+  const notificationOptions = {
+    body: payload.body,
+    icon: payload.icon || '/pwa-192x192.png',
+    badge: payload.badge || '/icon.svg',
+    tag: payload.tag || 'break-web-push',
+    vibrate: payload.vibrate || [500, 200, 500, 200, 500],
+    requireInteraction: true,
+    data: payload.data || { url: '/?mode=widget' },
+    actions: [
+      {
+        action: 'stop_break',
+        title: '⏹ ZAKOŃCZ PRZERWĘ (STOP)',
+      },
+      {
+        action: 'open_app',
+        title: '📱 OTWÓRZ APLIKACJĘ',
+      },
+    ],
+  };
+
+  event.waitUntil(self.registration.showNotification(payload.title, notificationOptions));
+});
+
+// 2. Notification click listener
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
   const channel = new BroadcastChannel('break_control_channel');
@@ -50,7 +96,7 @@ self.addEventListener('notificationclick', (event) => {
       })
     );
   } else {
-    // User clicked the notification body: open/focus the app or widget view
+    // User clicked the notification body or 'open_app': open/focus the app or widget view
     event.notification.close();
     event.waitUntil(
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
