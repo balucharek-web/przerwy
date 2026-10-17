@@ -24,17 +24,16 @@ let silentAudioEl: HTMLAudioElement | null = null;
 let silentAudioUrl: string | null = null;
 
 /**
- * Creates a valid 4-second 8-bit mono PCM silent WAV audio Blob.
- * Unlike a 0-sample empty base64 string, this generates a real media stream
- * with duration=4.0s that mobile browsers (Chrome Android, Safari iOS)
- * accept as active media playback, preventing tab throttling and enabling
- * native lock-screen media controls (MediaSession API).
+ * Creates a valid 10-second 8-bit mono PCM audio Blob with imperceptible sub-audible micro-oscillation.
+ * Unlike flat 0-sample silence which Android DSP power-saving detects and puts to sleep,
+ * this tiny 12Hz dither keeps the Android MediaSession service and background timer active
+ * continuously without producing any audible sound on phone speakers.
  */
 function getSilentAudioUrl(): string {
   if (silentAudioUrl) return silentAudioUrl;
   try {
     const sampleRate = 8000;
-    const numSamples = sampleRate * 4; // 4 seconds
+    const numSamples = sampleRate * 10; // 10 seconds
     const buffer = new ArrayBuffer(44 + numSamples);
     const view = new DataView(buffer);
 
@@ -54,7 +53,7 @@ function getSilentAudioUrl(): string {
     view.setUint32(16, 16, true); // Subchunk1Size
     view.setUint16(20, 1, true); // PCM format
     view.setUint16(22, 1, true); // Mono (1 channel)
-    view.setUint32(24, sampleRate, true); // Sample rate
+    view.setUint32(24, sampleRate, true); // Sample rate (8000 Hz)
     view.setUint32(28, sampleRate, true); // Byte rate (8000 * 1 * 1)
     view.setUint16(32, 1, true); // Block align
     view.setUint16(34, 8, true); // Bits per sample (8-bit)
@@ -63,9 +62,13 @@ function getSilentAudioUrl(): string {
     writeString(36, 'data');
     view.setUint32(40, numSamples, true);
 
-    // 8-bit PCM silence is 128 (0x80)
+    // Sub-audible 12Hz micro-sine wave (swings +/- 1 from 128: 127..129)
+    // 12Hz is below human hearing (20Hz+) and phone speakers cannot physically reproduce it,
+    // but Android hardware audio pipeline detects non-zero PCM and keeps the media session 100% active.
     const samples = new Uint8Array(buffer, 44, numSamples);
-    samples.fill(128);
+    for (let i = 0; i < numSamples; i++) {
+      samples[i] = 128 + Math.round(Math.sin((2 * Math.PI * 12 * i) / sampleRate));
+    }
 
     const blob = new Blob([buffer], { type: 'audio/wav' });
     silentAudioUrl = URL.createObjectURL(blob);
@@ -87,7 +90,7 @@ export function startBackgroundKeepAlive() {
       silentAudioEl = new Audio();
       silentAudioEl.src = getSilentAudioUrl();
       silentAudioEl.loop = true;
-      silentAudioEl.volume = 0.05; // Audible enough to trigger media thread, inaudible to human ear (silence samples)
+      silentAudioEl.volume = 0.05;
       silentAudioEl.setAttribute('playsinline', '');
       silentAudioEl.setAttribute('webkit-playsinline', '');
     }
@@ -100,7 +103,7 @@ export function startBackgroundKeepAlive() {
     const playPromise = silentAudioEl.play();
     if (playPromise !== undefined) {
       playPromise.catch((err) => {
-        console.warn('Silent audio play blocked (needs user gesture):', err);
+        console.warn('Silent audio keep-alive play deferred until user interaction:', err);
       });
     }
   } catch (e) {
@@ -303,10 +306,12 @@ export async function sendSystemNotification(title: string, options?: ExtendedNo
     return false;
   }
 
+  const origin = window.location.origin;
   const notificationOptions: any = {
-    icon: './pwa-192x192.png',
-    badge: './icon.svg',
+    icon: `${origin}/pwa-192x192.png`,
+    badge: `${origin}/icon.svg`,
     vibrate: [400, 150, 400, 150, 600],
+    visibility: 'public',
     ...options,
   };
 

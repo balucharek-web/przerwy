@@ -63,23 +63,35 @@ export function bindMediaSessionHandlers() {
     navigator.mediaSession.setActionHandler('stop', handleStop);
     navigator.mediaSession.setActionHandler('pause', handleStop);
     navigator.mediaSession.setActionHandler('play', handleStart);
+    // Allow scrubbing buttons on lock screen to also cleanly stop break
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', handleStop);
+      navigator.mediaSession.setActionHandler('previoustrack', handleStop);
+    } catch {
+      // Optional handlers
+    }
     mediaSessionHandlersBound = true;
   } catch (e) {
     // Ignore
   }
 }
 
+let lastNotificationBreakState: boolean | null = null;
+let lastNotifiedMinute: number = -1;
+
 /**
  * Updates the lock screen media session widget and system notification bar
  */
-export async function updateSystemNotificationBar(state: NotificationControlState) {
+export async function updateSystemNotificationBar(state: NotificationControlState, forceUpdate = false) {
   if (typeof window === 'undefined') return;
 
-  // 1. ALWAYS update Android/iOS Lock Screen MediaSession controls (works without notification permission!)
+  // 1. ALWAYS update Android/iOS Lock Screen MediaSession controls (renders native lock screen player!)
   updateMediaSessionControls(state);
 
   // 2. Check if persistent notification bar is enabled and break is active
   if (!state.enabled || (state.onlyDuringBreak !== false && !state.isBreakActive)) {
+    lastNotificationBreakState = false;
+    lastNotifiedMinute = -1;
     clearNotificationOnly();
     return;
   }
@@ -87,22 +99,44 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
   if (!('serviceWorker' in navigator) || !('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  // Throttle notification updates to at most once per 1000ms
   const now = Date.now();
-  if (state.isBreakActive && now - lastNotificationUpdateMs < 1000) {
+  const currentMinute = Math.floor(state.currentBreakSeconds / 60);
+  const stateChanged = lastNotificationBreakState !== state.isBreakActive;
+
+  // Throttle notification updates:
+  // Calling showNotification every single second causes Android NotificationManager rate-limiting,
+  // high CPU overhead, and severe stuttering when the user switches apps.
+  // Instead:
+  // - Update immediately on state change (start / stop) or forceUpdate
+  // - Update every minute on minute boundary
+  // - Or at least once every 8 seconds
+  const elapsedSinceLast = now - lastNotificationUpdateMs;
+  const isMinuteBoundary = currentMinute !== lastNotifiedMinute;
+  const shouldUpdate = forceUpdate || stateChanged || isMinuteBoundary || elapsedSinceLast >= 8000;
+
+  if (!shouldUpdate && state.isBreakActive) {
     return;
   }
+
   lastNotificationUpdateMs = now;
+  lastNotificationBreakState = state.isBreakActive;
+  lastNotifiedMinute = currentMinute;
 
   try {
     const reg = await navigator.serviceWorker.ready;
     if (!reg || !reg.showNotification) return;
 
     const { isBreakActive, currentBreakSeconds, remainingSeconds, allowanceSeconds } = state;
+    const origin = window.location.origin;
+    const iconUrl = `${origin}/pwa-192x192.png`;
+    const badgeUrl = `${origin}/icon.svg`;
 
-    // Calculate estimated return time
+    // Calculate estimated return time and start time
     const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
     const returnTimeStr = `${String(returnDate.getHours()).padStart(2, '0')}:${String(returnDate.getMinutes()).padStart(2, '0')}`;
+    
+    const startDate = new Date(now - currentBreakSeconds * 1000);
+    const startTimeStr = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
 
     // Prominent title with timer so it is immediately visible on Android lock screen
     const title = isBreakActive 
@@ -110,7 +144,7 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
       : `☕ PrzerwaPro • Pozostało: ${formatDuration(remainingSeconds)}`;
     
     const body = isBreakActive
-      ? `Powrót do pracy: ${returnTimeStr} | Dzienny limit: ${formatDuration(allowanceSeconds)}`
+      ? `🔔 Powrót do pracy: ${returnTimeStr} | Start: ${startTimeStr} (Limit: ${formatDuration(allowanceSeconds)})`
       : `Pozostały limit: ${formatDuration(remainingSeconds)} / ${formatDuration(allowanceSeconds)}`;
 
     // Android notification action buttons
@@ -128,20 +162,26 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
           },
         ];
 
+    // CRITICAL:
+    // 1. DO NOT set silent: true! On Android, silent notifications are hidden from the lock screen by default!
+    // 2. renotify: false ensures NO repeated sounds or vibration buzzes when updating.
+    // 3. visibility: 'public' instructs Android Lock Screen to show full details.
+    // 4. ongoing: true keeps it pinned while active.
     await reg.showNotification(title, {
       body,
       tag: NOTIFICATION_TAG,
-      icon: './pwa-192x192.png',
-      badge: './icon.svg',
+      icon: iconUrl,
+      badge: badgeUrl,
       actions,
-      silent: true,
       renotify: false,
       requireInteraction: isBreakActive,
       ongoing: isBreakActive,
-      timestamp: Date.now(),
+      timestamp: startDate.getTime(),
+      visibility: 'public',
       data: {
         isBreakActive,
-        updatedAt: Date.now(),
+        updatedAt: now,
+        url: `${origin}/?mode=widget`,
       },
     } as any);
   } catch (err) {
@@ -205,26 +245,29 @@ export function updateMediaSessionControls(state: NotificationControlState) {
     const now = Date.now();
     const returnDate = new Date(now + Math.max(0, remainingSeconds) * 1000);
     const returnTimeStr = `${String(returnDate.getHours()).padStart(2, '0')}:${String(returnDate.getMinutes()).padStart(2, '0')}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
+    // Pass absolute URLs for lock-screen artwork so Android system UI can load them properly
     navigator.mediaSession.metadata = new MediaMetadata({
       title: `⏱️ ${formatDuration(currentBreakSeconds)} • Przerwa (Zostało: ${formatDuration(remainingSeconds)})`,
-      artist: `🔔 Powrót do pracy: ${returnTimeStr} • Limit: ${formatDuration(allowanceSeconds)}`,
+      artist: `🔔 Powrót do pracy: ${returnTimeStr} • Dzienny limit: ${formatDuration(allowanceSeconds)}`,
       album: 'PrzerwaPro (Naciśnij Pauza/Stop aby zakończyć)',
       artwork: [
-        { src: './pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-        { src: './pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+        { src: `${origin}/pwa-192x192.png`, sizes: '192x192', type: 'image/png' },
+        { src: `${origin}/pwa-512x512.png`, sizes: '512x512', type: 'image/png' },
       ],
     });
 
     navigator.mediaSession.playbackState = 'playing';
 
+    // setPositionState instructs Android OS to animate the real-time progress bar natively!
     if ('setPositionState' in navigator.mediaSession) {
       try {
         const totalDuration = Math.max(allowanceSeconds, currentBreakSeconds + 1);
         navigator.mediaSession.setPositionState({
-          duration: totalDuration,
+          duration: Math.max(1, totalDuration),
           playbackRate: 1,
-          position: Math.min(totalDuration, currentBreakSeconds),
+          position: Math.min(totalDuration, Math.max(0, currentBreakSeconds)),
         });
       } catch (e) {
         // Ignore

@@ -12,6 +12,27 @@ self.addEventListener('notificationclick', (event) => {
       action: actionType,
     });
 
+    if (actionType === 'stop') {
+      event.notification.close();
+      // Show instant confirmation on lock screen
+      try {
+        self.registration.showNotification('✅ Przerwa zakończona', {
+          body: 'Pomyślnie zarejestrowano koniec przerwy. Wracaj do pracy!',
+          icon: '/pwa-192x192.png',
+          badge: '/icon.svg',
+          tag: 'przerwa-persistent-control',
+          silent: true,
+          data: { closedAt: Date.now() },
+        });
+        setTimeout(async () => {
+          const notifs = await self.registration.getNotifications({ tag: 'przerwa-persistent-control' });
+          notifs.forEach((n) => n.close());
+        }, 3500);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     event.waitUntil(
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
         // Send message to each client
@@ -23,7 +44,7 @@ self.addEventListener('notificationclick', (event) => {
         }
         // If no clients open, open with action param
         if (clientList.length === 0 && self.clients.openWindow) {
-          const targetUrl = actionType === 'start' ? './?action=start' : './?action=stop';
+          const targetUrl = actionType === 'start' ? '/?action=start' : '/?action=stop';
           return self.clients.openWindow(targetUrl);
         }
       })

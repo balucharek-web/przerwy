@@ -4,9 +4,10 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production';
   return {
-    base: './',
+    base: isProd ? './' : '/',
     plugins: [
       react(),
       tailwindcss(),
@@ -14,7 +15,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          id: './',
+          id: isProd ? './' : '/',
           name: 'PrzerwaPro - Rejestrator Przerw',
           short_name: 'PrzerwaPro',
           description: 'Aplikacja PWA do rejestrowania przerw w pracy z limitem 30 min, alarmem dźwiękowym i kalendarzem.',
@@ -22,23 +23,23 @@ export default defineConfig(() => {
           background_color: '#0f172a',
           display: 'standalone',
           orientation: 'portrait',
-          start_url: './',
-          scope: './',
+          start_url: isProd ? './' : '/',
+          scope: isProd ? './' : '/',
           icons: [
             {
-              src: './pwa-192x192.png',
+              src: isProd ? './pwa-192x192.png' : '/pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: './pwa-512x512.png',
+              src: isProd ? './pwa-512x512.png' : '/pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: './pwa-maskable-512x512.png',
+              src: '/pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -49,29 +50,29 @@ export default defineConfig(() => {
               name: 'Widget Start & Stop',
               short_name: 'Widget',
               description: 'Jeden widget z dwoma przyciskami Start i Stop',
-              url: './?mode=widget',
-              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
+              url: '/?mode=widget',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Rozpocznij przerwę (Start)',
               short_name: 'Start',
               description: 'Szybkie rozpoczęcie przerwy',
-              url: './?action=start',
-              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
+              url: '/?action=start',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Zakończ przerwę (Stop)',
               short_name: 'Stop',
               description: 'Zakończenie aktywnej przerwy',
-              url: './?action=stop',
-              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
+              url: '/?action=stop',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
             },
             {
               name: 'Miesięczny Kalendarz',
               short_name: 'Kalendarz',
               description: 'Zobacz historię przerw',
-              url: './?tab=calendar',
-              icons: [{ src: './pwa-192x192.png', sizes: '192x192' }],
+              url: '/?tab=calendar',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192' }],
             },
           ],
         },
@@ -80,11 +81,10 @@ export default defineConfig(() => {
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,
-          importScripts: ['./sw-actions.js'],
+          importScripts: ['/sw-actions.js'],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],

@@ -117,13 +117,7 @@ function AppContent() {
                   <Coffee className="w-5 h-5 fill-slate-950" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-base text-white tracking-tight">PrzerwaPro</span>
-                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                      PWA
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 -mt-0.5">30 min limit dzienny &bull; Alarm powrotu</div>
+                  <span className="font-black text-lg text-white tracking-tight">PrzerwaPro</span>
                 </div>
               </div>
 

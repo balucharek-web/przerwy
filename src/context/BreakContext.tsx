@@ -44,7 +44,7 @@ interface BreakContextType {
   clearAllHistory: () => void;
   testWebhook: () => Promise<WebhookLog>;
   testSoundAlarm: (type: 'warning' | 'final', volume?: number) => void;
-  testVibration: (type?: 'tick' | 'warning' | 'lock') => boolean;
+  testVibration: (type?: 'tick' | 'warning' | 'lock' | 'strong') => boolean;
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
@@ -611,13 +611,16 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  const testVibration = (type: 'tick' | 'warning' | 'lock' = 'tick'): boolean => {
+  const testVibration = (type: 'tick' | 'warning' | 'lock' | 'strong' = 'strong'): boolean => {
     if (type === 'tick') {
-      return triggerHaptic([100, 60, 180]);
+      return triggerHaptic([180, 80, 240]);
     } else if (type === 'lock') {
-      return triggerHaptic([70, 50, 70]);
+      return triggerHaptic([120, 80, 120]);
+    } else if (type === 'warning') {
+      return triggerHaptic([300, 100, 300, 100, 500]);
     } else {
-      return triggerHaptic([250, 100, 250, 100, 450]);
+      // Strong, multi-pulse test vibration sequence
+      return triggerHaptic([350, 120, 350, 120, 500]);
     }
   };
 

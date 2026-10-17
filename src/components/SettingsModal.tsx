@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
+import { isVibrationSupported } from '../utils/vibrationService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -63,6 +64,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const [keepScreenAwake, setKeepScreenAwake] = useState(settings.keepScreenAwakeDuringBreak ?? false);
   const [testLockCountdown, setTestLockCountdown] = useState<number | null>(null);
+  const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'unsupported'>('idle');
+
+  const handleTestVibration = () => {
+    const supported = isVibrationSupported();
+    testVibration('strong');
+    if (supported) {
+      setVibrationTestState('vibrating');
+      setTimeout(() => setVibrationTestState('idle'), 2500);
+    } else {
+      setVibrationTestState('unsupported');
+      setTimeout(() => setVibrationTestState('idle'), 5000);
+    }
+  };
 
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -321,22 +335,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </label>
 
                 {notificationBarControls && (
-                  <label className="flex items-start gap-2.5 cursor-pointer pt-2 border-t border-slate-700/60 pl-6">
-                    <input
-                      type="checkbox"
-                      checked={notificationBarOnlyDuringBreak}
-                      onChange={(e) => setNotificationBarOnlyDuringBreak(e.target.checked)}
-                      className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
-                    />
-                    <div>
-                      <span className="text-slate-200 font-semibold block text-xs">
-                        Pokazuj powiadomienie TYLKO podczas trwania przerwy
-                      </span>
-                      <span className="text-slate-400 text-[11px] block mt-0.5">
-                        Powiadomienie pojawia się w momencie kliknięcia Start (z licznikiem czasu na żywo i przyciskiem Stop), a po kliknięciu Stop <strong>znika natychmiast</strong> z paska powiadomień.
-                      </span>
+                  <div className="space-y-2.5 pt-2 border-t border-slate-700/60 pl-6">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={notificationBarOnlyDuringBreak}
+                        onChange={(e) => setNotificationBarOnlyDuringBreak(e.target.checked)}
+                        className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
+                      />
+                      <div>
+                        <span className="text-slate-200 font-semibold block text-xs">
+                          Pokazuj powiadomienie TYLKO podczas trwania przerwy
+                        </span>
+                        <span className="text-slate-400 text-[11px] block mt-0.5">
+                          Powiadomienie pojawia się w momencie kliknięcia Start (z licznikiem czasu na żywo i przyciskiem Stop), a po kliknięciu Stop <strong>znika natychmiast</strong> z paska powiadomień.
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Android Lock Screen tip */}
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-300">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Dlaczego nie widzisz powiadomienia na ekranie blokady?</span>
+                      </div>
+                      <p className="text-slate-300 leading-relaxed text-[10px]">
+                        W systemie Android domyślnie powiadomienia z przeglądarki Chrome mogą być ukrywane na ekranie blokady ze względów prywatności. Aby je włączyć:
+                      </p>
+                      <ol className="list-decimal pl-4 space-y-0.5 text-[10px] text-slate-300">
+                        <li>Wejdź w <strong>Ustawienia telefonu</strong> &rarr; <strong>Powiadomienia</strong> (lub Aplikacje &rarr; Chrome).</li>
+                        <li>Wybierz <strong>Powiadomienia na ekranie blokady</strong> i zaznacz <strong>„Pokaż całą treść”</strong>.</li>
+                        <li>W uprawnieniach Chrome sprawdź czy kategoria <strong>Powiadomienia witryn</strong> ma włączony „Ekran blokady”.</li>
+                      </ol>
                     </div>
-                  </label>
+                  </div>
                 )}
               </div>
 
@@ -357,14 +389,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   {vibrateEnabled && (
                     <button
                       type="button"
-                      onClick={() => testVibration('tick')}
-                      className="text-[10px] text-amber-400 hover:text-amber-300 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer flex items-center gap-1"
-                      title="Sprawdź jak wibruje telefon"
+                      onClick={handleTestVibration}
+                      className={`text-[11px] px-3 py-1.5 rounded-lg border font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 ${
+                        vibrationTestState === 'vibrating'
+                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold animate-pulse'
+                          : vibrationTestState === 'unsupported'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
+                          : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+                      }`}
+                      title="Przetestuj wibrację telefonu"
                     >
-                      <span>Sprawdź wibrację</span>
+                      <Smartphone className={`w-3.5 h-3.5 ${vibrationTestState === 'vibrating' ? 'animate-bounce' : ''}`} />
+                      <span>
+                        {vibrationTestState === 'vibrating'
+                          ? '📳 Telefon wibruje...'
+                          : vibrationTestState === 'unsupported'
+                          ? 'Brak obsługi wibracji w tej przeglądarce'
+                          : 'Sprawdź wibrację'}
+                      </span>
                     </button>
                   )}
                 </div>
+
+                {/* Vibration Feedback Banners */}
+                {vibrationTestState === 'vibrating' && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-[11px] text-amber-200 flex items-center gap-2 animate-in fade-in">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
+                    <span>Wysłano silną sekwencję wibracji do Twojego telefonu!</span>
+                  </div>
+                )}
+
+                {vibrationTestState === 'unsupported' && (
+                  <div className="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300 space-y-1 animate-in fade-in">
+                    <p className="font-bold text-amber-300">ℹ️ Informacja o wibracjach:</p>
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      Przeglądarki na komputerach oraz iOS (Safari na iPhone) nie obsługują wibracji stron www (Web Vibration API). 
+                      Wibracje działają bezpośrednio na <strong>telefonach z Androidem w przeglądarce Chrome</strong>.
+                    </p>
+                  </div>
+                )}
 
                 {vibrateEnabled && (
                   <div className="space-y-2.5 pt-2 border-t border-slate-700/60 pl-6 text-[11px]">
