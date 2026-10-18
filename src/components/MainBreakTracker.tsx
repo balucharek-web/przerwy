@@ -25,6 +25,7 @@ import {
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
 import { requestNotificationPermission } from '../utils/notificationControl';
+import { initPermanentPocketProtection, subscribePocketState } from '../utils/pocketService';
 
 
 
@@ -60,6 +61,13 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
   const [manualStartTime, setManualStartTime] = useState('');
   const [manualEndTime, setManualEndTime] = useState('');
   const [manualNote, setManualNote] = useState('');
+
+  // Permanent Pocket Protection (always active in background)
+  const [pocketState, setPocketState] = useState({ isInPocket: false, isCovered: false });
+  useEffect(() => {
+    initPermanentPocketProtection();
+    return subscribePocketState(setPocketState);
+  }, []);
 
   // Screen Wake Lock for OLED Desk Mode to keep screen active
   useEffect(() => {
@@ -347,9 +355,15 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                     <span>Kliknij, aby włączyć dźwięki i wibracje po wygaszeniu ekranu</span>
                   </button>
                 ) : (
-                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Licznik na ekranie blokady aktywny &bull; Dźwięk i wibracja w tle włączone</span>
+                  <div className="flex flex-col items-center gap-1.5">
+                    <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Licznik na ekranie blokady aktywny &bull; Dźwięk i wibracja w tle włączone</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-400 flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-medium">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                      <span>Ochrona w kieszeni: Aktywna na stałe</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -741,6 +755,20 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Permanent Pocket Shield: when phone is active in pocket with screen facing body/fabric */}
+      {isBreakActive && pocketState.isInPocket && pocketState.isCovered && (
+        <div 
+          className="fixed inset-0 bg-slate-950/95 z-50 flex flex-col items-center justify-center p-6 text-center select-none touch-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ShieldCheck className="w-16 h-16 text-emerald-400 animate-pulse mb-3" />
+          <h3 className="text-lg font-bold text-white">Ochrona w kieszeni aktywna</h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-xs">
+            Ekran zabezpieczony przed przypadkowym dotknięciem przez materiał spodni. Wyjmij telefon, aby powrócić do widoku.
+          </p>
         </div>
       )}
 
