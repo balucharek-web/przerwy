@@ -27,7 +27,6 @@ import {
   isScreenLockedOrHidden,
 } from '../utils/vibrationService';
 import { requestScreenWakeLock, releaseScreenWakeLock } from '../utils/wakeLockService';
-import { scheduleServerPush, cancelServerPush, sendTestServerPush } from '../utils/pushService';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -47,7 +46,6 @@ interface BreakContextType {
   testWebhook: () => Promise<WebhookLog>;
   testSoundAlarm: (type: 'warning' | 'final', volume?: number) => void;
   testVibration: (type?: 'tick' | 'warning' | 'lock' | 'strong') => boolean;
-  testServerPush: () => Promise<{ success: boolean; error?: string }>;
   lastWebhookStatus: { status: 'idle' | 'sending' | 'success' | 'error'; message: string };
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
@@ -84,7 +82,6 @@ const DEFAULT_SETTINGS: UserSettings = {
   keepScreenAwakeDuringBreak: false,
   pocketLockEnabled: false,
   appBadgeEnabled: true,
-  serverPushEnabled: true,
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -466,21 +463,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 8000);
 
     // Schedule server-side Web Push alarm as safety net for aggressive Android background sleep
-    if (settings.serverPushEnabled !== false) {
-      const alreadyUsed = todayCompletedSeconds;
-      const remSec = allowanceSeconds - alreadyUsed;
-      const warningSec = settings.warningMinutesBeforeEnd * 60;
-      const nowMs = now.getTime();
-      const limitTimeMs = nowMs + Math.max(10, remSec) * 1000;
-      const warningTimeMs = nowMs + Math.max(10, remSec - warningSec) * 1000;
 
-      scheduleServerPush({
-        warningTimeMs,
-        limitTimeMs,
-        warningMinutes: settings.warningMinutesBeforeEnd,
-        allowanceMinutes: settings.dailyAllowanceMinutes,
-      });
-    }
 
     if (settings.googleChatWebhookUrl) {
       setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
@@ -498,12 +481,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // STOP BREAK
   const stopBreak = async (note?: string, subtractMinutes?: number) => {
     if (!activeBreak) return;
-
-    // Cancel server push
-    cancelServerPush();
 
     const now = new Date();
     const startMs = new Date(activeBreak.startTime).getTime();
@@ -581,7 +560,6 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActiveBreak(null);
       clearSystemNotificationBar();
       stopBackgroundKeepAlive();
-      cancelServerPush();
     } else if (undoState.type === 'stop') {
       const { completedBreak } = undoState.payload || {};
       if (completedBreak) {
@@ -627,7 +605,6 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setBreaks((prev) => prev.filter((b) => b.dayKey !== currentDayKey));
     if (activeBreak) {
       setActiveBreak(null);
-      cancelServerPush();
     }
   };
 
@@ -635,7 +612,6 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setBreaks([]);
     setActiveBreak(null);
     setWebhookLogs([]);
-    cancelServerPush();
   };
 
   const testWebhook = async () => {
@@ -892,7 +868,6 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         testWebhook,
         testSoundAlarm,
         testVibration,
-        testServerPush: sendTestServerPush,
         lastWebhookStatus,
         exportDataJSON,
         importDataJSON,

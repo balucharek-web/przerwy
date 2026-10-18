@@ -37,7 +37,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     testWebhook,
     testSoundAlarm,
     testVibration,
-    testServerPush,
     clearTodayBreaks,
     clearAllHistory,
     exportDataJSON,
@@ -65,9 +64,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
   const [keepScreenAwake, setKeepScreenAwake] = useState(settings.keepScreenAwakeDuringBreak ?? false);
   const [appBadgeEnabled, setAppBadgeEnabled] = useState(settings.appBadgeEnabled !== false);
-  const [serverPushEnabled, setServerPushEnabled] = useState(settings.serverPushEnabled !== false);
-  const [pushTestState, setPushTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [pushTestError, setPushTestError] = useState('');
   const [testLockCountdown, setTestLockCountdown] = useState<number | null>(null);
   const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'unsupported'>('idle');
 
@@ -109,7 +105,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       keepScreenAwakeDuringBreak: keepScreenAwake,
       pocketLockEnabled: false,
       appBadgeEnabled,
-      serverPushEnabled,
     });
 
     setSaveSuccess(true);
@@ -545,80 +540,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </span>
                 </div>
               </label>
-            </div>
-
-            {/* Server-side Web Push Safety Net Setting */}
-            <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={serverPushEnabled}
-                  onChange={(e) => setServerPushEnabled(e.target.checked)}
-                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
-                />
-                <div>
-                  <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
-                    <Send className="w-3.5 h-3.5" /> Asekuracyjne powiadomienia Web Push (z serwera chmury)
-                  </span>
-                  <span className="text-slate-400 text-[11px] block mt-0.5">
-                    Gwarancja alarmu w kieszeni: jeśli system Android (np. Xiaomi, Samsung) agresywnie uśpi Chrome, serwer o wyliczonej minucie wyśle bezpośredni sygnał Web Push przez chmurę Google FCM, który obudzi ekran telefonu.
-                  </span>
-                </div>
-              </label>
-
-              {serverPushEnabled && (
-                <div className="pt-2 border-t border-slate-700/60 flex items-center justify-between">
-                  <span className="text-slate-300 text-[11px]">Przetestuj wysyłkę Push z serwera:</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setPushTestState('testing');
-                      setPushTestError('');
-                      const res = await testServerPush();
-                      if (res.success) {
-                        setPushTestState('success');
-                        setTimeout(() => setPushTestState('idle'), 4000);
-                      } else {
-                        setPushTestState('error');
-                        setPushTestError(res.error || 'Niepowodzenie');
-                        setTimeout(() => setPushTestState('idle'), 6000);
-                      }
-                    }}
-                    disabled={pushTestState === 'testing'}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
-                      pushTestState === 'testing'
-                        ? 'bg-slate-800 text-slate-400 border-slate-700'
-                        : pushTestState === 'success'
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                        : pushTestState === 'error'
-                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                    }`}
-                  >
-                    <Send className={`w-3.5 h-3.5 ${pushTestState === 'testing' ? 'animate-spin' : ''}`} />
-                    <span>
-                      {pushTestState === 'testing'
-                        ? 'Wysyłanie...'
-                        : pushTestState === 'success'
-                        ? '✓ Wysłano Push!'
-                        : pushTestState === 'error'
-                        ? 'Błąd testu'
-                        : 'Wyślij testowy Push'}
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              {pushTestState === 'success' && (
-                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 animate-in fade-in">
-                  ✅ Serwer pomyślnie wysłał powiadomienie Push do Twojego urządzenia! Sprawdź górny pasek powiadomień.
-                </div>
-              )}
-              {pushTestState === 'error' && (
-                <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[11px] text-rose-300 animate-in fade-in">
-                  ⚠️ {pushTestError}
-                </div>
-              )}
             </div>
 
             {/* Test buttons for audio & lockscreen */}
