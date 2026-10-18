@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+/* Tabular numbers for rock-solid timers and clocks (prevents numbers jittering) */
+.timer-digits,
+.tabular-nums,
+[data-timer] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}

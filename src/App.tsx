@@ -56,6 +56,25 @@ function AppContent() {
     }
   }, []);
 
+  // Handle Android Back Gesture / Browser Back Button to close open modals smoothly
+  useEffect(() => {
+    const isAnyModalOpen = isSettingsOpen || isWidgetGuideOpen || isShareOpen;
+    if (isAnyModalOpen) {
+      window.history.pushState({ modalOpen: true }, '');
+    }
+
+    const handlePopState = () => {
+      if (isSettingsOpen) setIsSettingsOpen(false);
+      if (isWidgetGuideOpen) setIsWidgetGuideOpen(false);
+      if (isShareOpen) setIsShareOpen(false);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isSettingsOpen, isWidgetGuideOpen, isShareOpen]);
+
   // Dedicated single widget mode containing both buttons
   if (isDedicatedWidget) {
     return (
@@ -83,7 +102,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+    <div className="min-h-screen bg-black sm:bg-slate-950 text-slate-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
       {/* Offline Status indicator */}
       <OfflineIndicator />
 

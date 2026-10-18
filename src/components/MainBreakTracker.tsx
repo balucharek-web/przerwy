@@ -108,10 +108,16 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
   const strokeDashoffset = circumference - (Math.min(percentUsed, 100) / 100) * circumference;
 
   const handleStart = () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(18); } catch {}
+    }
     startBreak();
   };
 
   const handleStop = () => {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      try { navigator.vibrate(18); } catch {}
+    }
     stopBreak();
     setShowCorrectionDetails(false);
   };
@@ -201,7 +207,7 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                 <div className="text-xs font-semibold uppercase tracking-wider text-amber-400/90 flex items-center gap-1.5 mb-1 animate-pulse">
                   <Coffee className="w-3.5 h-3.5" /> Ta przerwa
                 </div>
-                <div className="text-4xl sm:text-5xl font-mono font-extrabold text-white tracking-tight drop-shadow-md">
+                <div className="text-4xl sm:text-5xl font-mono font-extrabold text-white tracking-tight drop-shadow-md tabular-nums timer-digits">
                   {formatDuration(currentBreakSeconds)}
                 </div>
 
@@ -226,7 +232,7 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                   Pozostały limit
                 </div>
                 <div
-                  className={`text-4xl sm:text-5xl font-mono font-extrabold tracking-tight drop-shadow-md ${
+                  className={`text-4xl sm:text-5xl font-mono font-extrabold tracking-tight drop-shadow-md tabular-nums timer-digits ${
                     isOverLimit ? 'text-rose-400' : 'text-slate-100'
                   }`}
                 >
