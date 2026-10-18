@@ -64,7 +64,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [countdownVibrationIntervalMinutes, setCountdownVibrationIntervalMinutes] = useState(settings.countdownVibrationIntervalMinutes ?? 1);
 
   const [keepScreenAwake, setKeepScreenAwake] = useState(settings.keepScreenAwakeDuringBreak ?? false);
-  const [pocketLockEnabled, setPocketLockEnabled] = useState(settings.pocketLockEnabled !== false);
   const [appBadgeEnabled, setAppBadgeEnabled] = useState(settings.appBadgeEnabled !== false);
   const [serverPushEnabled, setServerPushEnabled] = useState(settings.serverPushEnabled !== false);
   const [pushTestState, setPushTestState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
@@ -108,7 +107,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       notificationBarControlsEnabled: notificationBarControls,
       notificationBarOnlyDuringBreak,
       keepScreenAwakeDuringBreak: keepScreenAwake,
-      pocketLockEnabled,
+      pocketLockEnabled: false,
       appBadgeEnabled,
       serverPushEnabled,
     });
@@ -526,25 +525,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </label>
             </div>
 
-            {/* Pocket Lock Setting */}
-            <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">
-              <label className="flex items-start gap-2.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={pocketLockEnabled}
-                  onChange={(e) => setPocketLockEnabled(e.target.checked)}
-                  className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800 mt-0.5"
-                />
-                <div>
-                  <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5" /> Ochrona przed kliknięciem w kieszeni (Pocket Lock)
-                  </span>
-                  <span className="text-slate-400 text-[11px] block mt-0.5">
-                    Wymaga przytrzymania przycisku START / STOP przez 1 sekundę zamiast pojedynczego kliknięcia. Eliminuje przypadkowe uruchomienie lub zatrzymanie przerwy przez materiał spodni.
-                  </span>
-                </div>
-              </label>
-            </div>
+
 
             {/* App Badging Setting */}
             <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">

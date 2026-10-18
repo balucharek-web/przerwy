@@ -82,7 +82,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   notificationBarOnlyDuringBreak: true,
   includeNameInSimpleMessage: true,
   keepScreenAwakeDuringBreak: false,
-  pocketLockEnabled: true,
+  pocketLockEnabled: false,
   appBadgeEnabled: true,
   serverPushEnabled: true,
 };
