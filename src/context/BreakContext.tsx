@@ -9,7 +9,7 @@ import {
   startBackgroundKeepAlive,
   stopBackgroundKeepAlive
 } from '../utils/audioAlert';
-import { sendGoogleChatWebhook } from '../utils/googleChatService';
+import { sendGoogleChatWebhook, flushOfflineWebhookQueue } from '../utils/googleChatService';
 import { 
   updateSystemNotificationBar, 
   clearSystemNotificationBar, 
@@ -54,6 +54,8 @@ interface BreakContextType {
   undoState: { type: 'start' | 'stop'; label: string; timestamp: number } | null;
   undoLastAction: () => void;
   dismissUndo: () => void;
+  powerOffWarning: { breakId: string; elapsedMinutes: number; startTime: string } | null;
+  resolvePowerOffBreak: (resolution: 'cap_allowance' | 'keep_running' | 'discard') => void;
 }
 
 import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
@@ -156,6 +158,79 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     payload?: any;
   } | null>(null);
   const undoTimeoutRef = useRef<any>(null);
+
+  // Power-off / Crash detection for active break upon app launch
+  const [powerOffWarning, setPowerOffWarning] = useState<{
+    breakId: string;
+    elapsedMinutes: number;
+    startTime: string;
+  } | null>(() => {
+    try {
+      const saved = localStorage.getItem(ACTIVE_BREAK_KEY);
+      if (!saved) return null;
+      const b: BreakRecord = JSON.parse(saved);
+      if (!b || !b.startTime) return null;
+      const elapsed = Math.floor((Date.now() - new Date(b.startTime).getTime()) / 1000);
+      // If active break has been running for > 50 minutes upon startup (typical after power off / reboot)
+      if (elapsed > 50 * 60) {
+        return {
+          breakId: b.id,
+          elapsedMinutes: Math.floor(elapsed / 60),
+          startTime: b.startTime,
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
+
+  const resolvePowerOffBreak = (resolution: 'cap_allowance' | 'keep_running' | 'discard') => {
+    if (!activeBreak) {
+      setPowerOffWarning(null);
+      return;
+    }
+
+    if (resolution === 'cap_allowance') {
+      const start = new Date(activeBreak.startTime);
+      const end = new Date(start.getTime() + settings.dailyAllowanceMinutes * 60 * 1000);
+      const finishedBreak: BreakRecord = {
+        ...activeBreak,
+        endTime: end.toISOString(),
+        durationSeconds: settings.dailyAllowanceMinutes * 60,
+        note: activeBreak.note ? `${activeBreak.note} (Skorygowano po restarcie)` : 'Skorygowano po restarcie telefonu',
+      };
+      setBreaks((prev) => [finishedBreak, ...prev.filter((b) => b.id !== finishedBreak.id)]);
+      setActiveBreak(null);
+      clearSystemNotificationBar();
+      stopBackgroundKeepAlive();
+    } else if (resolution === 'discard') {
+      setActiveBreak(null);
+      clearSystemNotificationBar();
+      stopBackgroundKeepAlive();
+    }
+    setPowerOffWarning(null);
+  };
+
+  // Auto-flush offline webhook queue when connection is restored
+  useEffect(() => {
+    const handleOnline = async () => {
+      const delivered = await flushOfflineWebhookQueue();
+      if (delivered > 0) {
+        setLastWebhookStatus({
+          status: 'success',
+          message: `✅ Dosłano ${delivered} zaległą wiadomość na Google Chat po powrocie do sieci!`,
+        });
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    handleOnline();
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+    };
+  }, []);
 
   // Flags to avoid multiple alarms in the same break session
   const warningAlarmFiredRef = useRef<boolean>(false);
@@ -876,6 +951,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         undoState,
         undoLastAction,
         dismissUndo,
+        powerOffWarning,
+        resolvePowerOffBreak,
       }}
     >
       {children}

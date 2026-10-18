@@ -51,6 +51,8 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
     updateBreak,
     addManualBreak,
     updateSettings,
+    powerOffWarning,
+    resolvePowerOffBreak,
   } = useBreaks();
 
   const [showManualModal, setShowManualModal] = useState(false);
@@ -153,6 +155,41 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-xl mx-auto">
+      {/* Power-off / Crash Recovery Banner */}
+      {powerOffWarning && (
+        <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-200 space-y-3 animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="font-bold text-sm text-white">Wykryto niezamkniętą przerwę sprzed wyłączenia</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Licznik wskazuje <strong>{powerOffWarning.elapsedMinutes} min</strong> trwania. Prawdopodobnie telefon rozładował się lub został zrestartowany. Wybierz, jak chcesz ją zapisać:
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <button
+              onClick={() => resolvePowerOffBreak('cap_allowance')}
+              className="py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition cursor-pointer active:scale-95 shadow-sm"
+            >
+              🛡️ Ogranicz do limitu (30 min)
+            </button>
+            <button
+              onClick={() => resolvePowerOffBreak('keep_running')}
+              className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer active:scale-95"
+            >
+              Kontynuuj odliczanie
+            </button>
+            <button
+              onClick={() => resolvePowerOffBreak('discard')}
+              className="py-1.5 px-3 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 text-xs transition cursor-pointer active:scale-95"
+            >
+              Anuluj tę przerwę
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Hero Card with Timer and Circular Progress */}
       <div className="relative overflow-hidden bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800/80 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col items-center text-center">
         {/* Glow decoration */}

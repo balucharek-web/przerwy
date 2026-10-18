@@ -9,7 +9,16 @@ if (root) {
   createRoot(root).render(<App />);
 }
 
-// 2. Safe Service Worker registration (only when top-level standalone window, never inside preview iframes)
+// 2. Request Storage Persistence to ensure Android NEVER evicts offline break history
+if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then((persisted) => {
+    if (persisted) {
+      console.log('✅ Pamięć aplikacji PrzerwaPro oznaczona jako trwała (ochrona przed czyszczeniem przez system Android)');
+    }
+  }).catch(() => {});
+}
+
+// 3. Safe Service Worker registration (only when top-level standalone window, never inside preview iframes)
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator && window.self === window.top) {
   try {
     let refreshing = false;

@@ -139,6 +139,23 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
       throw new Error(errorData.error || `HTTP ${proxyRes.status}`);
     }
   } catch (proxyError: any) {
+    // If delivery failed (e.g. no internet connection), enqueue into offline queue for auto-retry
+    if (action === 'start' || action === 'stop') {
+      enqueueOfflineWebhook({
+        webhookUrl: webhookUrl.trim(),
+        messageText,
+        action,
+        timestamp: new Date().toISOString(),
+      });
+      return {
+        id: Math.random().toString(36).substring(2),
+        timestamp: new Date().toISOString(),
+        action,
+        status: 'error',
+        message: 'Brak internetu. Wiadomość zapisana w kolejce offline – zostanie wysłana natychmiast po odzyskaniu zasięgu.',
+      };
+    }
+
     return {
       id: Math.random().toString(36).substring(2),
       timestamp: new Date().toISOString(),
@@ -148,3 +165,62 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     };
   }
 }
+
+const OFFLINE_QUEUE_KEY = 'przerwapro_offline_webhook_queue';
+
+interface QueuedWebhook {
+  webhookUrl: string;
+  messageText: string;
+  action: 'start' | 'stop';
+  timestamp: string;
+}
+
+function enqueueOfflineWebhook(item: QueuedWebhook) {
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    const queue: QueuedWebhook[] = raw ? JSON.parse(raw) : [];
+    queue.push(item);
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue.slice(-10)));
+  } catch {}
+}
+
+export async function flushOfflineWebhookQueue(): Promise<number> {
+  if (typeof window === 'undefined' || !navigator.onLine) return 0;
+  try {
+    const raw = localStorage.getItem(OFFLINE_QUEUE_KEY);
+    if (!raw) return 0;
+    const queue: QueuedWebhook[] = JSON.parse(raw);
+    if (!queue.length) return 0;
+
+    let delivered = 0;
+    const remaining: QueuedWebhook[] = [];
+
+    for (const item of queue) {
+      try {
+        const res = await fetch(item.webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          body: JSON.stringify({ text: `${item.messageText} (dosłane z kolejki po odzyskaniu zasięgu)` }),
+        });
+        if (res.ok) {
+          delivered++;
+        } else {
+          remaining.push(item);
+        }
+      } catch {
+        remaining.push(item);
+      }
+    }
+
+    if (remaining.length > 0) {
+      localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+    } else {
+      localStorage.removeItem(OFFLINE_QUEUE_KEY);
+    }
+
+    return delivered;
+  } catch {
+    return 0;
+  }
+}
+
