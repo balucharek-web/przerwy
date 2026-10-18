@@ -57,9 +57,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
   const [stopMessageText, setStopMessageText] = useState(settings.stopMessageText || 'stop');
   const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
-  const [webhookUrl, setWebhookUrl] = useState(settings.googleChatWebhookUrl || '');
-  const [showWebhookUrl, setShowWebhookUrl] = useState(false);
-  const [showAdvancedWebhook, setShowAdvancedWebhook] = useState(false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
 
@@ -106,7 +103,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       startMessageText: startMessageText.trim() || 'start',
       stopMessageText: stopMessageText.trim() || 'stop',
       includeNameInSimpleMessage,
-      googleChatWebhookUrl: webhookUrl.trim(),
       notificationBarControlsEnabled: notificationBarControls,
       notificationBarOnlyDuringBreak,
       keepScreenAwakeDuringBreak: keepScreenAwake,
@@ -638,44 +634,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
             </div>
 
-            {/* Bezpieczny, zamaskowany adres webhooka */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedWebhook(!showAdvancedWebhook)}
-                className="text-xs text-slate-400 hover:text-amber-400 font-medium flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Zaawansowane: Adres webhooka Google Chat</span>
-                {showAdvancedWebhook ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-
-              {showAdvancedWebhook && (
-                <div className="mt-2 p-3 rounded-xl bg-slate-800/80 border border-slate-700 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] text-slate-300 font-medium">Adres URL Webhooka (z tokenem pokoju):</label>
-                    <button
-                      type="button"
-                      onClick={() => setShowWebhookUrl(!showWebhookUrl)}
-                      className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
-                    >
-                      {showWebhookUrl ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{showWebhookUrl ? 'Ukryj token' : 'Odkryj token'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type={showWebhookUrl ? 'text' : 'password'}
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    placeholder="https://chat.googleapis.com/v1/spaces/.../messages?key=..."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:border-amber-500"
-                  />
-                  <div className="text-[10px] text-slate-400">
-                    🔒 Token jest domyślnie zamaskowany, aby chronić klucz dostępu przed osobami postronnymi.
-                  </div>
-                </div>
-              )}
-            </div>
 
             {/* Treść wiadomości na czacie */}
             <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/80 space-y-2.5">

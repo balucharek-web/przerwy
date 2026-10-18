@@ -13,7 +13,9 @@ import {
   Edit2, 
   Save, 
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useBreaks, TEAM_SHARED_WEBHOOK } from '../context/BreakContext';
@@ -30,6 +32,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
   const { settings, updateSettings } = useBreaks();
   const [copiedWebhook, setCopiedWebhook] = useState(false);
   const [isEditingWebhook, setIsEditingWebhook] = useState(false);
+  const [showWebhookToken, setShowWebhookToken] = useState(false);
   const [editWebhookValue, setEditWebhookValue] = useState(settings.googleChatWebhookUrl || TEAM_SHARED_WEBHOOK);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -299,33 +302,46 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
                 <Send className="w-3.5 h-3.5 text-amber-400" />
                 <span>Adres Webhooka Google Chat:</span>
               </label>
-              {!isEditingWebhook ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditWebhookValue(currentWebhook);
-                    setIsEditingWebhook(true);
-                  }}
-                  className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-medium"
-                >
-                  <Edit2 className="w-3 h-3" />
-                  <span>Zmień</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditingWebhook(false)}
-                  className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
-                >
-                  Anuluj
-                </button>
-              )}
+              <div className="flex items-center gap-2.5">
+                {!isEditingWebhook && (
+                  <button
+                    type="button"
+                    onClick={() => setShowWebhookToken(!showWebhookToken)}
+                    className="text-[11px] text-slate-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-medium"
+                    title={showWebhookToken ? 'Zamaskuj token pokoju' : 'Pokaż pełny token'}
+                  >
+                    {showWebhookToken ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showWebhookToken ? 'Zamaskuj' : 'Odkryj'}</span>
+                  </button>
+                )}
+                {!isEditingWebhook ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditWebhookValue(currentWebhook);
+                      setIsEditingWebhook(true);
+                    }}
+                    className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer font-medium"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span>Zmień</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingWebhook(false)}
+                    className="text-[11px] text-slate-400 hover:text-white cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                )}
+              </div>
             </div>
 
             {!isEditingWebhook ? (
               <div className="flex items-center gap-2">
                 <input
-                  type="text"
+                  type={showWebhookToken ? 'text' : 'password'}
                   readOnly
                   value={currentWebhook}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px] select-all focus:outline-none truncate"
