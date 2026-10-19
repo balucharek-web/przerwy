@@ -231,6 +231,7 @@ export function playToggleFeedback(isStart: boolean, volume: number = 80) {
  */
 export interface ExtendedNotificationOptions extends NotificationOptions {
   vibrate?: number | number[];
+  renotify?: boolean;
 }
 
 export async function sendSystemNotification(title: string, options?: ExtendedNotificationOptions): Promise<boolean> {

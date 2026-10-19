@@ -111,14 +111,14 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
 
   const handleStart = () => {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate(18); } catch {}
+      try { navigator.vibrate([70]); } catch {}
     }
     startBreak();
   };
 
   const handleStop = () => {
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate(18); } catch {}
+      try { navigator.vibrate([70]); } catch {}
     }
     stopBreak();
     setShowCorrectionDetails(false);

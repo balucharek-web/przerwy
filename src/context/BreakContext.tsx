@@ -464,6 +464,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         sendSystemNotification('⚠️ Zbliża się koniec przerwy!', {
           body: `Zostały tylko ${settings.warningMinutesBeforeEnd} minuty z limitu (${settings.dailyAllowanceMinutes} min). Czas wracać!`,
           tag: 'break-warning',
+          renotify: true,
           vibrate: [400, 150, 400, 150, 600],
           requireInteraction: true,
         });
@@ -484,6 +485,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         sendSystemNotification('⏰ Limit przerwy wykorzystany!', {
           body: `Twój limit ${settings.dailyAllowanceMinutes} minut na dzisiaj właśnie się skończył. Wracaj do pracy!`,
           tag: 'break-limit',
+          renotify: true,
           vibrate: [1000, 300, 1000, 300, 1500],
           requireInteraction: true,
         });
