@@ -34,16 +34,16 @@ export default defineConfig(({ mode }) => {
               src: isProd ? './pwa-192x192.png' : '/pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
-              purpose: 'any',
+              purpose: 'any maskable',
             },
             {
               src: isProd ? './pwa-512x512.png' : '/pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
-              purpose: 'any',
+              purpose: 'any maskable',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: isProd ? './pwa-maskable-512x512.png' : '/pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -82,6 +82,8 @@ export default defineConfig(({ mode }) => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          globIgnores: ['**/assets/aistudio/**', '**/*.map'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           skipWaiting: true,
           clientsClaim: true,
           cleanupOutdatedCaches: true,

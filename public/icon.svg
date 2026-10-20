@@ -18,12 +18,8 @@
     </filter>
   </defs>
 
-  <!-- Background Base -->
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
-  
-  <!-- Subtle circular accent line -->
-  <circle cx="256" cy="256" r="210" fill="none" stroke="#334155" stroke-width="6" stroke-dasharray="12 12" opacity="0.6"/>
-  <circle cx="256" cy="256" r="185" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round" stroke-dasharray="480 999"/>
+  <!-- Background Base: Full-bleed edge-to-edge so launcher mask cuts cleanly -->
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
 
   <!-- Coffee & Break Stopwatch Badge -->
   <g filter="url(#shadow)" transform="translate(0, -6)">

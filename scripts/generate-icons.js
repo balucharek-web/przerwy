@@ -29,22 +29,9 @@ async function generate() {
     .toFile(path.join(publicDir, 'apple-touch-icon.png'));
   console.log('Generated apple-touch-icon.png');
 
-  // Maskable 512x512 with 15% safe padding
-  const paddedSize = Math.round(512 * 0.76); // inner image
-  const innerBuffer = await sharp(svgBuffer)
-    .resize(paddedSize, paddedSize)
-    .png()
-    .toBuffer();
-
-  await sharp({
-    create: {
-      width: 512,
-      height: 512,
-      channels: 4,
-      background: { r: 15, g: 23, b: 42, alpha: 1 } // #0f172a
-    }
-  })
-    .composite([{ input: innerBuffer, gravity: 'center' }])
+  // Maskable 512x512: full-bleed edge-to-edge so launcher mask cuts smoothly across entire icon
+  await sharp(svgBuffer)
+    .resize(512, 512)
     .png()
     .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'));
   console.log('Generated pwa-maskable-512x512.png');
