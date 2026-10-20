@@ -26,6 +26,7 @@ import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
 import { requestNotificationPermission } from '../utils/notificationControl';
 import { initPermanentPocketProtection, subscribePocketState } from '../utils/pocketService';
+import { triggerButtonHaptic } from '../utils/vibrationService';
 
 
 
@@ -110,16 +111,12 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
   const strokeDashoffset = circumference - (Math.min(percentUsed, 100) / 100) * circumference;
 
   const handleStart = () => {
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate([70]); } catch {}
-    }
+    triggerButtonHaptic();
     startBreak();
   };
 
   const handleStop = () => {
-    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-      try { navigator.vibrate([70]); } catch {}
-    }
+    triggerButtonHaptic();
     stopBreak();
     setShowCorrectionDetails(false);
   };

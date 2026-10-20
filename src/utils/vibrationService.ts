@@ -69,10 +69,10 @@ export function triggerHaptic(
     return false;
   }
 
-  // Normalize pattern: ensure minimum 60ms pulse so physical phone motors (Samsung, Xiaomi, Pixel) can overcome inertia
+  // Normalize pattern: ensure minimum 120ms pulse so physical phone motors (Motorola, Samsung, Xiaomi) can overcome inertia
   const normalizedPattern = Array.isArray(pattern) 
-    ? pattern.map((p, idx) => (idx % 2 === 0 ? Math.max(60, p) : p))
-    : Math.max(60, pattern);
+    ? pattern.map((p, idx) => (idx % 2 === 0 ? Math.max(120, p) : p))
+    : Math.max(120, pattern);
 
   try {
     return navigator.vibrate(normalizedPattern);
@@ -83,25 +83,33 @@ export function triggerHaptic(
 }
 
 /**
+ * Mechanical dual-pulse haptic click for button presses (Start/Stop).
+ * Strong enough to overcome inertia on Motorola ERM/LRA motors.
+ */
+export function triggerButtonHaptic() {
+  triggerHaptic([160, 60, 160]);
+}
+
+/**
  * Gentle confirmation when screen gets locked during an active break
  * (confirms that the countdown is running in your pocket)
  */
 export function triggerScreenLockConfirmation() {
-  triggerHaptic([160, 90, 160]);
+  triggerHaptic([200, 100, 200]);
 }
 
 /**
  * Periodic countdown pulse:
- * - Regular minute: 1 distinct pulse (180ms)
- * - 5-minute milestone (5, 10, 15, 20 min): 2 distinct pulses (220ms, 90ms pause, 260ms)
+ * - Regular minute: 1 distinct pulse (220ms)
+ * - 5-minute milestone (5, 10, 15, 20 min): 2 distinct pulses (260ms, 100ms pause, 300ms)
  */
 export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolean = false) {
   if (minuteCount % 5 === 0) {
     // 5-minute milestone: double pulse
-    triggerHaptic([220, 90, 260]);
+    triggerHaptic([260, 100, 300]);
   } else {
     // Regular single-minute pulse
-    triggerHaptic([180]);
+    triggerHaptic([220]);
   }
 }
 
@@ -109,12 +117,12 @@ export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolea
  * 3-minute warning alarm vibration (tactile sequence)
  */
 export function triggerWarningVibration(onlyWhenHidden: boolean = false) {
-  triggerHaptic([350, 120, 350, 120, 600]);
+  triggerHaptic([500, 150, 500, 150, 800]);
 }
 
 /**
  * 0-minute final limit reached alarm vibration
  */
 export function triggerLimitReachedVibration(onlyWhenHidden: boolean = false) {
-  triggerHaptic([600, 150, 600, 150, 900]);
+  triggerHaptic([800, 200, 800, 200, 1200]);
 }

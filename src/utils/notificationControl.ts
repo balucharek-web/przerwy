@@ -146,9 +146,9 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
           },
         ];
 
-    // CRITICAL:
     // 1. DO NOT set silent: true! On Android, silent notifications are hidden from the lock screen by default!
-    // 2. renotify: false ensures NO repeated sounds or vibration buzzes when updating.
+    // 2. renotify: stateChanged & isBreakActive ensures that starting the break triggers Android's native system vibration buzz,
+    //    while subsequent ticks remain silent and non-intrusive.
     // 3. visibility: 'public' instructs Android Lock Screen to show full details.
     // 4. ongoing: true keeps it pinned while active.
     await reg.showNotification(title, {
@@ -157,7 +157,8 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
       icon: iconUrl,
       badge: badgeUrl,
       actions,
-      renotify: false,
+      renotify: stateChanged && isBreakActive,
+      vibrate: stateChanged && isBreakActive ? [220, 80, 220] : undefined,
       requireInteraction: isBreakActive,
       ongoing: isBreakActive,
       timestamp: startDate.getTime(),

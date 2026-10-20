@@ -23,6 +23,7 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
+  Info,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
@@ -68,9 +69,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [keepScreenAwake, setKeepScreenAwake] = useState(settings.keepScreenAwakeDuringBreak ?? false);
   const [appBadgeEnabled, setAppBadgeEnabled] = useState(settings.appBadgeEnabled !== false);
   const [testLockCountdown, setTestLockCountdown] = useState<number | null>(null);
-  const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'unsupported'>('idle');
+  const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'sys-vibrating' | 'unsupported'>('idle');
+  const [showVibrationGuide, setShowVibrationGuide] = useState(false);
 
-  const handleTestVibration = () => {
+  const handleTestHapticVibration = () => {
     const supported = isVibrationSupported();
     testVibration('strong');
     if (supported) {
@@ -80,6 +82,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setVibrationTestState('unsupported');
       setTimeout(() => setVibrationTestState('idle'), 5000);
     }
+  };
+
+  const handleTestSystemVibration = async () => {
+    setVibrationTestState('sys-vibrating');
+    await sendSystemNotification('📳 Test wibracji systemowej (Android)', {
+      body: 'System Android wygenerował wibrację z powiadomienia!',
+      tag: 'test-sys-vibration',
+      renotify: true,
+      vibrate: [600, 200, 600, 200, 800],
+      requireInteraction: true,
+    });
+    setTimeout(() => setVibrationTestState('idle'), 3000);
   };
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -379,7 +393,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               </div>
 
               {/* Vibration Settings subsection */}
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2.5 cursor-pointer">
                     <input
@@ -389,49 +403,94 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       className="rounded border-slate-700 text-amber-500 focus:ring-0 w-4 h-4 bg-slate-800"
                     />
                     <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
-                      <Smartphone className="w-4 h-4" /> Wibracje telefonu (Haptic feedback)
+                      <Smartphone className="w-4 h-4" /> Wibracje telefonu i alarmów
                     </span>
                   </label>
-                  {vibrateEnabled && (
-                    <button
-                      type="button"
-                      onClick={handleTestVibration}
-                      className={`text-[11px] px-3 py-1.5 rounded-lg border font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 ${
-                        vibrationTestState === 'vibrating'
-                          ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold animate-pulse'
-                          : vibrationTestState === 'unsupported'
-                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                          : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
-                      }`}
-                      title="Przetestuj wibrację telefonu"
-                    >
-                      <Smartphone className={`w-3.5 h-3.5 ${vibrationTestState === 'vibrating' ? 'animate-bounce' : ''}`} />
-                      <span>
-                        {vibrationTestState === 'vibrating'
-                          ? '📳 Telefon wibruje...'
-                          : vibrationTestState === 'unsupported'
-                          ? 'Brak obsługi wibracji w tej przeglądarce'
-                          : 'Sprawdź wibrację'}
-                      </span>
-                    </button>
-                  )}
                 </div>
 
-                {/* Vibration Feedback Banners */}
-                {vibrationTestState === 'vibrating' && (
-                  <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-[11px] text-amber-200 flex items-center gap-2 animate-in fade-in">
-                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
-                    <span>Wysłano silną sekwencję wibracji do Twojego telefonu!</span>
-                  </div>
-                )}
+                {vibrateEnabled && (
+                  <div className="space-y-2.5 pt-1">
+                    {/* Dual Vibration Test Buttons */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestHapticVibration}
+                        className={`text-[11px] px-3 py-2 rounded-xl border font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                          vibrationTestState === 'vibrating'
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold animate-pulse'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                        }`}
+                        title="Przetestuj wibrację fizyczną silniczka"
+                      >
+                        <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{vibrationTestState === 'vibrating' ? '📳 Silniczek wibruje...' : '1. Test dotyku (Silniczek)'}</span>
+                      </button>
 
-                {vibrationTestState === 'unsupported' && (
-                  <div className="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300 space-y-1 animate-in fade-in">
-                    <p className="font-bold text-amber-300">ℹ️ Informacja o wibracjach:</p>
-                    <p className="text-[10px] text-slate-400 leading-relaxed">
-                      Przeglądarki na komputerach oraz iOS (Safari na iPhone) nie obsługują wibracji stron www (Web Vibration API). 
-                      Wibracje działają bezpośrednio na <strong>telefonach z Androidem w przeglądarce Chrome</strong>.
-                    </p>
+                      <button
+                        type="button"
+                        onClick={handleTestSystemVibration}
+                        className={`text-[11px] px-3 py-2 rounded-xl border font-semibold transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-95 ${
+                          vibrationTestState === 'sys-vibrating'
+                            ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold animate-pulse'
+                            : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border-sky-500/30'
+                        }`}
+                        title="Przetestuj wibrację systemową Androida przez powiadomienie"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-sky-400" />
+                        <span>{vibrationTestState === 'sys-vibrating' ? '🔔 Wibracja systemowa...' : '2. Test wibracji systemowej'}</span>
+                      </button>
+                    </div>
+
+                    {/* Vibration Feedback Banners */}
+                    {vibrationTestState === 'vibrating' && (
+                      <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-[11px] text-amber-200 flex items-center gap-2 animate-in fade-in">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                        <span>Wysłano impuls haptyczny (160ms + 160ms) do silniczka telefonu!</span>
+                      </div>
+                    )}
+
+                    {vibrationTestState === 'sys-vibrating' && (
+                      <div className="p-2 rounded-lg bg-sky-500/15 border border-sky-500/40 text-[11px] text-sky-200 flex items-center gap-2 animate-in fade-in">
+                        <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping shrink-0" />
+                        <span>Wysłano powiadomienie systemowe Androida z wymuszoną wibracją alarmu!</span>
+                      </div>
+                    )}
+
+                    {vibrationTestState === 'unsupported' && (
+                      <div className="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-[11px] text-slate-300 space-y-1 animate-in fade-in">
+                        <p className="font-bold text-amber-300">ℹ️ Informacja o wibracjach:</p>
+                        <p className="text-[10px] text-slate-400 leading-relaxed">
+                          Przeglądarka raportuje brak dostępu do silniczka. Użyj przycisku <strong>„2. Test wibracji systemowej”</strong>, aby wymusić wibrację przez powiadomienie Androida.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Troubleshooting Guide Toggle */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowVibrationGuide(!showVibrationGuide)}
+                        className="text-[11px] text-slate-400 hover:text-amber-400 flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Info className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Telefon nie zawibrował? Sprawdź 2 ustawienia w Motoroli</span>
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showVibrationGuide ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {showVibrationGuide && (
+                        <div className="mt-2 p-3 rounded-xl bg-slate-900 border border-amber-500/30 text-[11px] text-slate-300 space-y-2 animate-in fade-in">
+                          <p className="font-bold text-amber-300">Jak odblokować wibracje w telefonie Motorola / Android:</p>
+                          <ol className="list-decimal pl-4 space-y-1.5 text-[10px] text-slate-300 leading-relaxed">
+                            <li>
+                              <strong>Wibracje dotyku (kliknięcia):</strong> Wejdź w <em>Ustawienia telefonu &rarr; Dźwięk i wibracje &rarr; Wibracje i reakcje haptyczne</em> i upewnij się, że suwak <strong>„Reakcja haptyczna przy dotknięciu”</strong> jest włączony.
+                            </li>
+                            <li>
+                              <strong>Wibracje powiadomień / alarmów:</strong> Przytrzymaj ikonę <strong>PrzerwaPro</strong> na pulpicie &rarr; <em>(i) Informacje o aplikacji &rarr; Powiadomienia</em> &rarr; upewnij się, że opcja <strong>Wibracje</strong> jest zaznaczona, a kategoria to <strong>Domyślne / Ważne</strong> (nie „Ciche”).
+                            </li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
