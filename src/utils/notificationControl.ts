@@ -122,14 +122,13 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     const startDate = new Date(now - currentBreakSeconds * 1000);
     const startTimeStr = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
 
-    // Prominent title with target return time so it NEVER looks frozen or desynced when in background apps!
+    // Prominent title and body with absolute wall-clock target time so it NEVER looks frozen or desynced even while gaming!
     const title = isBreakActive 
       ? `☕ Powrót do pracy: ${returnTimeStr}` 
       : `☕ PrzerwaPro • Limit: ${formatDuration(allowanceSeconds)}`;
     
-    const remMin = Math.max(0, Math.ceil(remainingSeconds / 60));
     const body = isBreakActive
-      ? `⏱️ Zostało ok. ${remMin} min • Start: ${startTimeStr} (Limit: ${formatDuration(allowanceSeconds)})`
+      ? `Koniec przerwy o ${returnTimeStr} • Start: ${startTimeStr} (Limit: ${formatDuration(allowanceSeconds)})`
       : `Pozostały limit na dzisiaj: ${formatDuration(remainingSeconds)}`;
 
     // Android notification action buttons
