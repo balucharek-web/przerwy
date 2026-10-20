@@ -112,11 +112,15 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   });
 
-  // History break records
+  // History break records (with auto-deduplication to self-heal any previous duplicate entries)
   const [breaks, setBreaks] = useState<BreakRecord[]>(() => {
     try {
       const saved = localStorage.getItem(RECORDS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      const parsed: BreakRecord[] = saved ? JSON.parse(saved) : [];
+      // Clean up any exact duplicate records (same id or same startTime and endTime)
+      return parsed.filter(
+        (b, idx, arr) => arr.findIndex((x) => x.id === b.id || (x.startTime === b.startTime && x.endTime === b.endTime)) === idx
+      );
     } catch {
       return [];
     }
@@ -158,6 +162,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     payload?: any;
   } | null>(null);
   const undoTimeoutRef = useRef<any>(null);
+  const isStartingRef = useRef<boolean>(false);
+  const isStoppingRef = useRef<boolean>(false);
 
   // Power-off / Crash detection for active break upon app launch
   const [powerOffWarning, setPowerOffWarning] = useState<{
@@ -495,7 +501,11 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // START BREAK
   const startBreak = async (note?: string) => {
-    if (activeBreak) return;
+    if (isStartingRef.current || activeBreak) return;
+    isStartingRef.current = true;
+    setTimeout(() => {
+      isStartingRef.current = false;
+    }, 1200);
 
     const now = new Date();
     const dayKey = getDayKey(now, settings.resetHour);
@@ -559,7 +569,11 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const stopBreak = async (note?: string, subtractMinutes?: number) => {
-    if (!activeBreak) return;
+    if (isStoppingRef.current || !activeBreak) return;
+    isStoppingRef.current = true;
+    setTimeout(() => {
+      isStoppingRef.current = false;
+    }, 1200);
 
     const now = new Date();
     const startMs = new Date(activeBreak.startTime).getTime();
@@ -586,7 +600,13 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       note: finalNote,
     };
 
-    setBreaks((prev) => [completed, ...prev]);
+    setBreaks((prev) => {
+      // Prevent duplicate saving
+      if (prev.some((b) => b.id === completed.id || (b.startTime === completed.startTime && b.endTime === completed.endTime))) {
+        return prev;
+      }
+      return [completed, ...prev];
+    });
     setActiveBreak(null);
     releaseScreenWakeLock();
     clearSystemNotificationBar();
@@ -865,7 +885,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof window === 'undefined') return;
 
     const channel = getControlChannel();
+    let lastActionHandledMs = 0;
     const handleActionMessage = (action: string) => {
+      const now = Date.now();
+      if (now - lastActionHandledMs < 1200) return;
+      lastActionHandledMs = now;
+
       if (action === 'start') {
         startBreak('Pasek powiadomień');
       } else if (action === 'stop') {

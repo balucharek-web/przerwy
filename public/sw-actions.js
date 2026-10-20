@@ -47,16 +47,9 @@ self.addEventListener('push', (event) => {
 // 2. Notification click listener
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;
-  const channel = new BroadcastChannel('break_control_channel');
 
   if (action === 'start_break' || action === 'stop_break') {
     const actionType = action === 'start_break' ? 'start' : 'stop';
-
-    // Broadcast to active windows
-    channel.postMessage({
-      type: 'NOTIFICATION_ACTION',
-      action: actionType,
-    });
 
     if (actionType === 'stop') {
       // Immediately and cleanly dismiss the notification from lock screen
@@ -64,11 +57,21 @@ self.addEventListener('notificationclick', (event) => {
 
       event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-          for (const client of clientList) {
-            client.postMessage({
+          if (clientList && clientList.length > 0) {
+            for (const client of clientList) {
+              client.postMessage({
+                type: 'NOTIFICATION_ACTION',
+                action: 'stop',
+              });
+            }
+          } else {
+            // Only fallback to BroadcastChannel if no window clients were found
+            const channel = new BroadcastChannel('break_control_channel');
+            channel.postMessage({
               type: 'NOTIFICATION_ACTION',
               action: 'stop',
             });
+            setTimeout(() => channel.close(), 1000);
           }
           // NEVER call openWindow for STOP on a locked screen.
           // Calling openWindow while locked causes Android to flash/prompt "Unlock phone".
