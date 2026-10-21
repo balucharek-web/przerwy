@@ -955,6 +955,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           allowanceSeconds: todaySummary.allowanceSeconds,
           enabled: true,
           onlyDuringBreak: settings.notificationBarOnlyDuringBreak !== false,
+          titleStyle: settings.notificationBarTitleStyle ?? 'countdown_and_return',
         });
       }
     } else {
@@ -967,6 +968,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     todaySummary.allowanceSeconds,
     settings.notificationBarControlsEnabled,
     settings.notificationBarOnlyDuringBreak,
+    settings.notificationBarTitleStyle,
   ]);
 
   return (

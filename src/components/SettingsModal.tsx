@@ -60,6 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
+  const [notificationBarTitleStyle, setNotificationBarTitleStyle] = useState<'countdown_and_return' | 'countdown_only' | 'return_only'>(settings.notificationBarTitleStyle ?? 'countdown_and_return');
 
   const [vibrateEnabled, setVibrateEnabled] = useState(settings.vibrateEnabled ?? true);
   const [vibrationIntensity, setVibrationIntensityState] = useState<'turbo' | 'strong' | 'light'>(settings.vibrationIntensity ?? 'turbo');
@@ -109,6 +110,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       includeNameInSimpleMessage,
       notificationBarControlsEnabled: notificationBarControls,
       notificationBarOnlyDuringBreak,
+      notificationBarTitleStyle,
       keepScreenAwakeDuringBreak: keepScreenAwake,
       pocketLockEnabled: false,
       appBadgeEnabled,
@@ -362,6 +364,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                         </span>
                       </div>
                     </label>
+
+                    {/* Notification Bar Title Style Selector */}
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/80 space-y-1.5">
+                      <span className="text-amber-300 font-bold block text-xs flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" /> Wygląd powiadomienia na pasku:
+                      </span>
+                      <div className="grid grid-cols-1 gap-1.5 pt-1">
+                        {[
+                          { id: 'countdown_and_return', label: '⏳ Odliczanie + Godzina powrotu (Polecane)', desc: 'np. ⏳ 12:45 • Powrót: 11:40' },
+                          { id: 'countdown_only', label: '⏱️ Tylko zegar odliczania', desc: 'np. ⏳ Pozostało: 12:45' },
+                          { id: 'return_only', label: '☕ Tylko godzina powrotu', desc: 'np. ☕ Powrót do pracy: 11:40' },
+                        ].map((opt) => (
+                          <label
+                            key={opt.id}
+                            className={`flex items-start gap-2.5 p-2 rounded-lg cursor-pointer border transition ${
+                              notificationBarTitleStyle === opt.id
+                                ? 'bg-amber-500/15 border-amber-500/60 text-amber-200'
+                                : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="notificationTitleStyle"
+                              value={opt.id}
+                              checked={notificationBarTitleStyle === opt.id}
+                              onChange={() => {
+                                const val = opt.id as any;
+                                setNotificationBarTitleStyle(val);
+                                updateSettings({ notificationBarTitleStyle: val });
+                              }}
+                              className="text-amber-500 focus:ring-0 mt-0.5"
+                            />
+                            <div>
+                              <span className="text-xs font-bold block">{opt.label}</span>
+                              <span className="text-[10px] text-slate-400 block">{opt.desc}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
 
                     {/* Android Lock Screen tip */}
                     <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 space-y-1">

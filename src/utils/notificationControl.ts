@@ -18,6 +18,7 @@ export interface NotificationControlState {
   allowanceSeconds: number;
   enabled: boolean;
   onlyDuringBreak?: boolean;
+  titleStyle?: 'countdown_and_return' | 'countdown_only' | 'return_only';
 }
 
 /**
@@ -121,14 +122,38 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     
     const startDate = new Date(now - currentBreakSeconds * 1000);
     const startTimeStr = `${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`;
+    
+    // Format remaining time and current break duration
+    const isOvertime = remainingSeconds < 0;
+    const absRemaining = Math.abs(remainingSeconds);
+    const countdownStr = formatDuration(absRemaining);
+    const currentDurationStr = formatDuration(currentBreakSeconds);
 
-    // Prominent title and body with absolute wall-clock target time so it NEVER looks frozen or desynced even while gaming!
-    const title = isBreakActive 
-      ? `☕ Powrót do pracy: ${returnTimeStr}` 
-      : `☕ PrzerwaPro • Limit: ${formatDuration(allowanceSeconds)}`;
+    // Title: Display countdown timer next to or instead of return time!
+    let title: string;
+    if (isBreakActive) {
+      if (isOvertime) {
+        title = `⚠️ +${countdownStr} (Po czasie!) • Powrót: ${returnTimeStr}`;
+      } else {
+        switch (state.titleStyle) {
+          case 'countdown_only':
+            title = `⏳ Pozostało: ${countdownStr}`;
+            break;
+          case 'return_only':
+            title = `☕ Powrót do pracy: ${returnTimeStr}`;
+            break;
+          case 'countdown_and_return':
+          default:
+            title = `⏳ ${countdownStr} • Powrót: ${returnTimeStr}`;
+            break;
+        }
+      }
+    } else {
+      title = `☕ PrzerwaPro • Pozostało: ${countdownStr}`;
+    }
     
     const body = isBreakActive
-      ? `Koniec przerwy o ${returnTimeStr} • Start: ${startTimeStr} (Limit: ${formatDuration(allowanceSeconds)})`
+      ? `Pozostało: ${isOvertime ? `+${countdownStr} po limicie` : countdownStr} • Trwa: ${currentDurationStr} (Start: ${startTimeStr})`
       : `Pozostały limit na dzisiaj: ${formatDuration(remainingSeconds)}`;
 
     // Android notification action buttons

@@ -27,6 +27,7 @@ export interface UserSettings {
   includeNameInSimpleMessage?: boolean; // default false: adds "Imię: start" / "Imię: stop" for shared team webhooks
   notificationBarControlsEnabled?: boolean; // default true: shows start/stop notification bar controls
   notificationBarOnlyDuringBreak?: boolean; // default true: shows notification ONLY while break is active, disappears on stop
+  notificationBarTitleStyle?: 'countdown_and_return' | 'countdown_only' | 'return_only'; // default 'countdown_and_return': ⏳ 12:45 • Powrót: 11:40
   keepScreenAwakeDuringBreak?: boolean; // default false: keeps screen awake during break (Wake Lock API)
   pocketLockEnabled?: boolean; // default true: prevents accidental taps in pocket (hold to start/stop)
   appBadgeEnabled?: boolean; // default true: displays remaining break minutes badge on home screen app icon
