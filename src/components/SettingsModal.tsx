@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
-import { isVibrationSupported, testContinuousVibration } from '../utils/vibrationService';
+import { isVibrationSupported } from '../utils/vibrationService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -73,35 +73,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'sys-vibrating' | 'unsupported'>('idle');
   const [showVibrationGuide, setShowVibrationGuide] = useState(false);
 
-  const [motorDiagResult, setMotorDiagResult] = useState<string | null>(null);
-
-  const handleTestContinuous = (durationMs = 2500) => {
-    const success = testContinuousVibration(durationMs);
-    setVibrationTestState('vibrating');
-    setMotorDiagResult(
-      success
-        ? '✅ Komenda wysłana pomyślnie do silniczka (status: true)'
-        : '❌ Android zablokował wibrację (status: false - sprawdź Ustawienia telefonu)'
-    );
-    setTimeout(() => {
-      setVibrationTestState('idle');
-    }, durationMs + 200);
-  };
-
-  const handleTestHapticVibration = () => {
-    handleTestContinuous(2000);
-  };
-
-  const handleTestSystemVibration = async (patternToTest?: number[]) => {
+  const handleTestSystemVibration = async () => {
     setVibrationTestState('sys-vibrating');
-    await sendSystemNotification('📳 Test wibracji systemowej (PrzerwaPro)', {
-      body: 'Maksymalna wibracja systemowa Androida!',
+    await sendSystemNotification('🔔 Test wibracji systemowej', {
+      body: 'Wibracja systemowa Androida (taka sama jak w SMS i WhatsApp)',
       tag: 'test-sys-vibration',
       renotify: true,
-      vibrate: patternToTest || [1200, 200, 1200, 200, 1500],
-      requireInteraction: true,
+      vibrate: [400, 150, 400],
+      requireInteraction: false,
     });
-    setTimeout(() => setVibrationTestState('idle'), 3000);
+    setTimeout(() => setVibrationTestState('idle'), 2500);
   };
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -418,128 +399,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
 
                 {vibrateEnabled && (
-                  <div className="space-y-2.5 pt-1">
-                    {/* Intensity selector */}
-                    <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-amber-300 font-bold flex items-center gap-1.5">
-                          <span>⚡ Siła wibracji:</span>
-                        </span>
-                        <span className="text-[10px] text-amber-400 font-semibold">
-                          {vibrationIntensity === 'turbo' && '🚀 Turbo / Maksymalna (Polecane dla Motoroli)'}
-                          {vibrationIntensity === 'strong' && '⚡ Wyrazista'}
-                          {vibrationIntensity === 'light' && '🍃 Dyskretna'}
-                        </span>
+                  <div className="space-y-3 pt-1">
+                    {/* Clean System Notification Test Button */}
+                    <button
+                      type="button"
+                      onClick={handleTestSystemVibration}
+                      className={`w-full py-3 px-4 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
+                        vibrationTestState === 'sys-vibrating'
+                          ? 'bg-amber-500 text-slate-950 font-black animate-pulse'
+                          : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40'
+                      }`}
+                      title="Przetestuj wibrację powiadomienia Androida"
+                    >
+                      <Bell className="w-4 h-4 text-amber-400" />
+                      <span>{vibrationTestState === 'sys-vibrating' ? '🔔 Wysłano powiadomienie...' : '🔔 Przetestuj wibrację powiadomienia'}</span>
+                    </button>
+
+                    <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-bold">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Czyste wibracje systemowe Androida</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-1.5 pt-1">
-                        {[
-                          { id: 'turbo', label: '🚀 Turbo (Max)' },
-                          { id: 'strong', label: '⚡ Mocna' },
-                          { id: 'light', label: '🍃 Lekka' },
-                        ].map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => {
-                              const val = opt.id as 'turbo' | 'strong' | 'light';
-                              setVibrationIntensityState(val);
-                              updateSettings({ vibrationIntensity: val });
-                              const pat = val === 'turbo' ? [500, 120, 500] : val === 'strong' ? [320, 90, 320] : [180, 60, 180];
-                              handleTestSystemVibration(pat);
-                            }}
-                            className={`py-2 px-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 ${
-                              vibrationIntensity === opt.id
-                                ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400 shadow-md shadow-amber-500/20'
-                                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                            }`}
-                          >
-                            <span>{opt.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Continuous Full Power Test Button */}
-                    <div className="flex flex-col gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleTestContinuous(2500)}
-                        className={`w-full py-3 px-4 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
-                          vibrationTestState === 'vibrating'
-                            ? 'bg-rose-500 text-white animate-pulse ring-4 ring-rose-400/40'
-                            : 'bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-slate-950 shadow-amber-500/20'
-                        }`}
-                        title="Uruchom 2.5 sekundy ciągłej wibracji na 100% mocy"
-                      >
-                        <Smartphone className="w-4 h-4 text-slate-950 animate-bounce" />
-                        <span>{vibrationTestState === 'vibrating' ? '📳 SILNICZEK PRACUJE (2.5 sekundy)...' : '🚨 TEST CIĄGŁEJ WIBRACJI (2.5 sekundy na 100% mocy)'}</span>
-                      </button>
-
-                      {motorDiagResult && (
-                        <div className={`p-2 rounded-lg text-[10px] font-mono font-semibold flex items-center gap-1.5 border ${
-                          motorDiagResult.includes('true')
-                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                            : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
-                        }`}>
-                          <span>{motorDiagResult}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleTestSystemVibration()}
-                        className="text-[11px] text-slate-400 hover:text-sky-300 flex items-center gap-1 py-1 transition cursor-pointer"
-                      >
-                        <Bell className="w-3.5 h-3.5 text-sky-400" />
-                        <span>Test powiadomienia w tle</span>
-                      </button>
-                    </div>
-
-                    {/* Crucial Section: Why other apps vibrate and how to enable it for PrzerwaPro */}
-                    <div className="p-3.5 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-500/50 text-[11px] text-slate-200 space-y-2.5 shadow-lg">
-                      <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
-                        <Bell className="w-4 h-4 text-amber-400 shrink-0" />
-                        <span>Dlaczego w WhatsApp/SMS czuć wibrację, a w naszej aplikacji bardziej dźwięk?</span>
-                      </div>
-                      
-                      <p className="text-[10px] text-slate-300 leading-relaxed">
-                        Aplikacje takie jak WhatsApp czy SMS mają w systemie Android domyślnie włączone wibracje w swoim kanale. 
-                        Gdy instalujesz aplikację przez Chrome, <strong>Android domyślnie włącza sam dźwięk, a wibracje powiadomień witryny zostawia wyłączone</strong>!
+                      <p className="text-[10px] text-slate-400 leading-relaxed">
+                        Aplikacja korzysta wyłącznie ze standardowych wibracji powiadomień Androida (dokładnie tak jak WhatsApp czy SMS).
                       </p>
-
-                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
-                        <p className="font-bold text-amber-200 text-[11px]">
-                          Jak w 10 sekund włączyć wibracje na całej obudowie:
-                        </p>
-                        
-                        <button
-                          type="button"
-                          onClick={() => handleTestSystemVibration()}
-                          className="w-full py-2.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-md active:scale-95"
-                        >
-                          <Bell className="w-4 h-4 text-slate-950" />
-                          <span>1. Kliknij tutaj, aby wysłać powiadomienie na belkę</span>
-                        </button>
-
-                        <ol className="list-decimal pl-4 space-y-1 text-[10px] text-slate-300 leading-relaxed">
-                          <li>
-                            Zsuń belkę powiadomień u góry telefonu.
-                          </li>
-                          <li>
-                            <strong>Przytrzymaj palec na powiadomieniu PrzerwaPro</strong> (lub kliknij ikonkę zębatki ⚙️).
-                          </li>
-                          <li>
-                            Kliknij <strong>„Więcej ustawień”</strong> (lub nazwę strony) i <strong>włącz suwak „WIBRACJE”</strong>.
-                          </li>
-                        </ol>
-
-                        <div className="p-2 rounded bg-emerald-950/70 border border-emerald-500/40 text-[10px] text-emerald-300 font-semibold flex items-center gap-1.5">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                          <span>Gdy włączysz ten suwak w Androidzie, telefon zawibruje z pełną siłą na całej obudowie dokładnie tak jak przy powiadomieniach z innych aplikacji!</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
