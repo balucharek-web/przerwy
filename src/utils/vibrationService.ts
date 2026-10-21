@@ -15,11 +15,12 @@ export function isScreenLockedOrHidden(): boolean {
 }
 
 /**
- * Subtle low-frequency acoustic haptic pop (120Hz)
- * Provides physical audio-tactile feedback for devices without motor (e.g. iOS Safari, PC)
- * or as immediate tactile confirmation of touch.
+ * Low-frequency acoustic chassis rumble (85Hz-110Hz).
+ * Smartphone stereo speakers vibrate physically at their resonant frequency.
+ * This physically vibrates the phone chassis through speaker excursion,
+ * providing deep tactile feedback in hand and pocket!
  */
-export function playHapticAudioPop() {
+export function playHeavyChassisRumble(durationSeconds: number = 0.35) {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
@@ -29,26 +30,25 @@ export function playHapticAudioPop() {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(140, now);
-    osc.frequency.exponentialRampToValueAtTime(50, now + 0.05);
+    osc.type = 'triangle'; // Rich low-order harmonics for maximum mechanical speaker vibration
+    osc.frequency.setValueAtTime(95, now);
+    osc.frequency.exponentialRampToValueAtTime(75, now + durationSeconds);
 
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    gain.gain.setValueAtTime(0.85, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + durationSeconds);
 
     osc.connect(gain);
     gain.connect(ctx.destination);
 
     osc.start(now);
-    osc.stop(now + 0.06);
+    osc.stop(now + durationSeconds + 0.05);
   } catch {
-    // Ignore audio pop errors
+    // Ignore audio errors
   }
 }
 
 /**
- * Safely triggers vibration pattern.
- * If onlyWhenHidden is true, vibration only fires if the screen is locked/hidden.
+ * Safely triggers vibration pattern with physical motor + acoustic chassis rumble.
  */
 export function triggerHaptic(
   pattern: number | number[], 
@@ -56,7 +56,7 @@ export function triggerHaptic(
   withAudioPop: boolean = true
 ): boolean {
   if (withAudioPop) {
-    playHapticAudioPop();
+    playHeavyChassisRumble(0.35);
   }
 
   if (typeof window !== 'undefined') {
@@ -144,12 +144,13 @@ export function getTickPattern(minuteCount: number, intensity: VibrationIntensit
  * Android's native NotificationManager triggers the phone's physical vibration motor
  * REGARDLESS of whether the user has disabled haptic touch feedback in their phone!
  */
-export async function triggerSystemVibration(pattern: number[] = getButtonPattern()): Promise<boolean> {
-  // 1. Always attempt standard vibration as well
-  triggerHaptic(pattern);
+export async function triggerSystemVibration(pattern: number[] = getButtonPattern(), sendNotification: boolean = false): Promise<boolean> {
+  // 1. Always attempt physical motor vibration + acoustic chassis rumble
+  const hapticSuccess = triggerHaptic(pattern);
 
-  // 2. Dispatch system notification vibration via Service Worker
-  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
+  // 2. Dispatch system notification vibration only when screen is hidden (pocket) or explicitly requested (alarms)
+  const isHidden = isScreenLockedOrHidden();
+  if ((sendNotification || isHidden) && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
     if (Notification.permission === 'granted') {
       try {
         const reg = await navigator.serviceWorker.ready;
@@ -166,8 +167,7 @@ export async function triggerSystemVibration(pattern: number[] = getButtonPatter
             data: { isBuzz: true },
           } as any);
 
-          // CRITICAL: Calculate exact total duration of the pattern so Android does NOT terminate
-          // the vibration motor early before all vibration pulses complete!
+          // Calculate exact total duration so Android does NOT terminate early
           const totalDuration = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
           const closeDelay = Math.max(1200, totalDuration + 300);
 
@@ -185,7 +185,7 @@ export async function triggerSystemVibration(pattern: number[] = getButtonPatter
     }
   }
 
-  return false;
+  return hapticSuccess;
 }
 
 /**

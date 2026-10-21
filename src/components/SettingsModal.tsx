@@ -452,62 +452,68 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </div>
                     </div>
 
-                    {/* System Vibration Test Button */}
-                    <div className="flex flex-col gap-2">
+                    {/* Vibration Test Buttons */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={handleTestHapticVibration}
+                        className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
+                          vibrationTestState === 'vibrating'
+                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-black animate-pulse'
+                            : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
+                        }`}
+                        title="Przetestuj pełną wibrację silniczka bez dźwięku"
+                      >
+                        <Smartphone className="w-4 h-4 text-amber-400" />
+                        <span>{vibrationTestState === 'vibrating' ? '📳 Silniczek wibruje...' : '📳 Testuj silniczek (Bez dźwięku)'}</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleTestSystemVibration()}
-                        className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
+                        className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
                           vibrationTestState === 'sys-vibrating'
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
-                            : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
+                            ? 'bg-sky-500 text-slate-950 border-sky-400 font-black animate-pulse'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
                         }`}
-                        title="Przetestuj pełną wibrację systemową Androida"
+                        title="Przetestuj wibrację powiadomienia Androida"
                       >
-                        <Bell className="w-4 h-4 text-amber-400" />
-                        <span>{vibrationTestState === 'sys-vibrating' ? '📳 Testowa wibracja wysłana...' : '🔔 Przetestuj pełną wibrację systemową'}</span>
+                        <Bell className="w-4 h-4 text-sky-400" />
+                        <span>{vibrationTestState === 'sys-vibrating' ? '🔔 Wysłano powiadomienie...' : '🔔 Test powiadomienia'}</span>
                       </button>
                     </div>
 
-                    <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-700/80 text-[11px] text-slate-300 space-y-1">
-                      <span className="font-bold text-amber-300 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        Wibracje systemowe (niezależne od haptyki):
-                      </span>
-                      <p className="text-[10px] text-slate-400 leading-relaxed">
-                        Aplikacja korzysta z silnika <strong>Powiadomień Systemowych Androida</strong> (kanał powiadomień).
-                        Dzięki temu telefon zawibruje przy starcie, pauzie i alarmach nawet wtedy, gdy w ustawieniach telefonu masz <strong>całkowicie wyłączone wibracje dotykowe / haptyczne klawiatury i ekranu</strong>!
+                    {/* Vibration Feedback Banner */}
+                    {vibrationTestState === 'vibrating' && (
+                      <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/50 text-[11px] text-amber-200 flex items-center gap-2 animate-in fade-in">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                        <span>Wysłano 1.5 sekundy potężnej wibracji silnika + rezonans obudowy!</span>
+                      </div>
+                    )}
+
+                    {/* Crucial Guide: How to get full vibration power without vibrating keyboard */}
+                    <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/40 text-[11px] text-slate-300 space-y-2">
+                      <div className="flex items-center gap-1.5 text-amber-300 font-bold">
+                        <Info className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Dlaczego telefon wibrował tylko cicho z dźwiękiem powiadomienia?</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 leading-relaxed">
+                        Gdy w telefonie wyłączysz <em>„Wibracje i reakcje haptyczne”</em>, Android <strong>blokuje bezpośredni dostęp do silniczka</strong>. Przy powiadomieniu telefon wydaje wtedy jedynie pojedyncze, ciche 40ms piknięcie wbudowane w dzwonek.
                       </p>
-                    </div>
-
-                    {/* Troubleshooting Guide Toggle */}
-                    <div className="pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setShowVibrationGuide(!showVibrationGuide)}
-                        className="text-[11px] text-slate-400 hover:text-amber-400 flex items-center gap-1.5 transition cursor-pointer"
-                      >
-                        <Info className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Telefon nadal nie wibruje? Sprawdź jedno ustawienie w telefonie</span>
-                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showVibrationGuide ? 'rotate-180' : ''}`} />
-                      </button>
-
-                      {showVibrationGuide && (
-                        <div className="mt-2 p-3 rounded-xl bg-slate-900 border border-amber-500/30 text-[11px] text-slate-300 space-y-2 animate-in fade-in">
-                          <p className="font-bold text-amber-300">Jedyny warunek działania wibracji w telefonie:</p>
-                          <p className="text-[10px] text-slate-300 leading-relaxed">
-                            Ponieważ wibracje są systemowe (jak SMS czy powiadomienia), upewnij się jedynie, że telefon nie jest w trybie całkowitego wyciszenia („Nie przeszkadzać”) oraz że powiadomienia z aplikacji mają włączone wibracje:
-                          </p>
-                          <ol className="list-decimal pl-4 space-y-1 text-[10px] text-slate-400 leading-relaxed">
-                            <li>
-                              Przytrzymaj palec na ikonie <strong>PrzerwaPro</strong> na pulpicie &rarr; <em>(i) Informacje o aplikacji</em> &rarr; <em>Powiadomienia</em>.
-                            </li>
-                            <li>
-                              Upewnij się, że kategoria powiadomień to <strong>Domyślne / Ważne</strong> (a nie „Ciche”), a suwak <strong>Wibracje</strong> jest włączony.
-                            </li>
-                          </ol>
-                        </div>
-                      )}
+                      <div className="pt-1 border-t border-slate-800 text-[10px] text-slate-300 space-y-1">
+                        <p className="font-bold text-amber-200">Jak uzyskać potężną wibrację w kieszeni (bez wibrującej klawiatury):</p>
+                        <ol className="list-decimal pl-4 space-y-1 text-slate-400 leading-relaxed">
+                          <li>
+                            W telefonie: <strong>Ustawienia &rarr; Dźwięk i wibracje &rarr; Wibracje i haptyka</strong> &rarr; włącz i przesuń suwaki na <strong>Maksimum</strong>.
+                          </li>
+                          <li>
+                            <strong>Żeby klawiatura nie wibrowała przy pisaniu:</strong> otwórz dowolny czat (np. SMS), kliknij w klawiaturę Gboard &rarr; zębatka <em>Ustawienia klawiatury &rarr; Preferencje &rarr; wyłącz „Wibracja przy naciśnięciu klawisza”</em>.
+                          </li>
+                        </ol>
+                        <p className="text-emerald-400 font-semibold pt-1">
+                          Gotowe! Klawiatura pozostanie cicha, a w PrzerwaPro telefon zawibruje z pełną mocą!
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
