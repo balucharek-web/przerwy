@@ -497,28 +497,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </button>
                     </div>
 
-                    {/* Crucial Guide: How to get full vibration power without vibrating keyboard */}
-                    <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/40 text-[11px] text-slate-300 space-y-2">
-                      <div className="flex items-center gap-1.5 text-amber-300 font-bold">
-                        <Info className="w-4 h-4 text-amber-400 shrink-0" />
-                        <span>Dlaczego telefon wibrował tylko cicho z dźwiękiem powiadomienia?</span>
+                    {/* Crucial Section: Why other apps vibrate and how to enable it for PrzerwaPro */}
+                    <div className="p-3.5 rounded-xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-amber-500/50 text-[11px] text-slate-200 space-y-2.5 shadow-lg">
+                      <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                        <Bell className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Dlaczego w WhatsApp/SMS czuć wibrację, a w naszej aplikacji bardziej dźwięk?</span>
                       </div>
+                      
                       <p className="text-[10px] text-slate-300 leading-relaxed">
-                        Gdy w telefonie wyłączysz <em>„Wibracje i reakcje haptyczne”</em>, Android <strong>blokuje bezpośredni dostęp do silniczka</strong>. Przy powiadomieniu telefon wydaje wtedy jedynie pojedyncze, ciche 40ms piknięcie wbudowane w dzwonek.
+                        Aplikacje takie jak WhatsApp czy SMS mają w systemie Android domyślnie włączone wibracje w swoim kanale. 
+                        Gdy instalujesz aplikację przez Chrome, <strong>Android domyślnie włącza sam dźwięk, a wibracje powiadomień witryny zostawia wyłączone</strong>!
                       </p>
-                      <div className="pt-1 border-t border-slate-800 text-[10px] text-slate-300 space-y-1">
-                        <p className="font-bold text-amber-200">Jak uzyskać potężną wibrację w kieszeni (bez wibrującej klawiatury):</p>
-                        <ol className="list-decimal pl-4 space-y-1 text-slate-400 leading-relaxed">
+
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
+                        <p className="font-bold text-amber-200 text-[11px]">
+                          Jak w 10 sekund włączyć wibracje na całej obudowie:
+                        </p>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleTestSystemVibration()}
+                          className="w-full py-2.5 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-md active:scale-95"
+                        >
+                          <Bell className="w-4 h-4 text-slate-950" />
+                          <span>1. Kliknij tutaj, aby wysłać powiadomienie na belkę</span>
+                        </button>
+
+                        <ol className="list-decimal pl-4 space-y-1 text-[10px] text-slate-300 leading-relaxed">
                           <li>
-                            W telefonie: <strong>Ustawienia &rarr; Dźwięk i wibracje &rarr; Wibracje i haptyka</strong> &rarr; włącz i przesuń suwaki na <strong>Maksimum</strong>.
+                            Zsuń belkę powiadomień u góry telefonu.
                           </li>
                           <li>
-                            <strong>Żeby klawiatura nie wibrowała przy pisaniu:</strong> otwórz dowolny czat (np. SMS), kliknij w klawiaturę Gboard &rarr; zębatka <em>Ustawienia klawiatury &rarr; Preferencje &rarr; wyłącz „Wibracja przy naciśnięciu klawisza”</em>.
+                            <strong>Przytrzymaj palec na powiadomieniu PrzerwaPro</strong> (lub kliknij ikonkę zębatki ⚙️).
+                          </li>
+                          <li>
+                            Kliknij <strong>„Więcej ustawień”</strong> (lub nazwę strony) i <strong>włącz suwak „WIBRACJE”</strong>.
                           </li>
                         </ol>
-                        <p className="text-emerald-400 font-semibold pt-1">
-                          Gotowe! Klawiatura pozostanie cicha, a w PrzerwaPro telefon zawibruje z pełną mocą!
-                        </p>
+
+                        <div className="p-2 rounded bg-emerald-950/70 border border-emerald-500/40 text-[10px] text-emerald-300 font-semibold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                          <span>Gdy włączysz ten suwak w Androidzie, telefon zawibruje z pełną siłą na całej obudowie dokładnie tak jak przy powiadomieniach z innych aplikacji!</span>
+                        </div>
                       </div>
                     </div>
                   </div>
