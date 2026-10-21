@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
-import { isVibrationSupported } from '../utils/vibrationService';
+import { isVibrationSupported, testContinuousVibration } from '../utils/vibrationService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -73,16 +73,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'sys-vibrating' | 'unsupported'>('idle');
   const [showVibrationGuide, setShowVibrationGuide] = useState(false);
 
+  const [motorDiagResult, setMotorDiagResult] = useState<string | null>(null);
+
+  const handleTestContinuous = (durationMs = 2500) => {
+    const success = testContinuousVibration(durationMs);
+    setVibrationTestState('vibrating');
+    setMotorDiagResult(
+      success
+        ? '✅ Komenda wysłana pomyślnie do silniczka (status: true)'
+        : '❌ Android zablokował wibrację (status: false - sprawdź Ustawienia telefonu)'
+    );
+    setTimeout(() => {
+      setVibrationTestState('idle');
+    }, durationMs + 200);
+  };
+
   const handleTestHapticVibration = () => {
-    const supported = isVibrationSupported();
-    testVibration('strong');
-    if (supported) {
-      setVibrationTestState('vibrating');
-      setTimeout(() => setVibrationTestState('idle'), 2500);
-    } else {
-      setVibrationTestState('unsupported');
-      setTimeout(() => setVibrationTestState('idle'), 5000);
-    }
+    handleTestContinuous(2000);
   };
 
   const handleTestSystemVibration = async (patternToTest?: number[]) => {
@@ -91,7 +98,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       body: 'Maksymalna wibracja systemowa Androida!',
       tag: 'test-sys-vibration',
       renotify: true,
-      vibrate: patternToTest || [700, 150, 700, 150, 900],
+      vibrate: patternToTest || [1200, 200, 1200, 200, 1500],
       requireInteraction: true,
     });
     setTimeout(() => setVibrationTestState('idle'), 3000);
@@ -452,44 +459,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </div>
                     </div>
 
-                    {/* Vibration Test Buttons */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Continuous Full Power Test Button */}
+                    <div className="flex flex-col gap-1.5">
                       <button
                         type="button"
-                        onClick={handleTestHapticVibration}
-                        className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
+                        onClick={() => handleTestContinuous(2500)}
+                        className={`w-full py-3 px-4 rounded-xl text-xs font-black transition cursor-pointer flex items-center justify-center gap-2 shadow-lg active:scale-95 ${
                           vibrationTestState === 'vibrating'
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 font-black animate-pulse'
-                            : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
+                            ? 'bg-rose-500 text-white animate-pulse ring-4 ring-rose-400/40'
+                            : 'bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-400 hover:to-rose-500 text-slate-950 shadow-amber-500/20'
                         }`}
-                        title="Przetestuj pełną wibrację silniczka bez dźwięku"
+                        title="Uruchom 2.5 sekundy ciągłej wibracji na 100% mocy"
                       >
-                        <Smartphone className="w-4 h-4 text-amber-400" />
-                        <span>{vibrationTestState === 'vibrating' ? '📳 Silniczek wibruje...' : '📳 Testuj silniczek (Bez dźwięku)'}</span>
+                        <Smartphone className="w-4 h-4 text-slate-950 animate-bounce" />
+                        <span>{vibrationTestState === 'vibrating' ? '📳 SILNICZEK PRACUJE (2.5 sekundy)...' : '🚨 TEST CIĄGŁEJ WIBRACJI (2.5 sekundy na 100% mocy)'}</span>
                       </button>
 
+                      {motorDiagResult && (
+                        <div className={`p-2 rounded-lg text-[10px] font-mono font-semibold flex items-center gap-1.5 border ${
+                          motorDiagResult.includes('true')
+                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                            : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+                        }`}>
+                          <span>{motorDiagResult}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end">
                       <button
                         type="button"
                         onClick={() => handleTestSystemVibration()}
-                        className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
-                          vibrationTestState === 'sys-vibrating'
-                            ? 'bg-sky-500 text-slate-950 border-sky-400 font-black animate-pulse'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                        }`}
-                        title="Przetestuj wibrację powiadomienia Androida"
+                        className="text-[11px] text-slate-400 hover:text-sky-300 flex items-center gap-1 py-1 transition cursor-pointer"
                       >
-                        <Bell className="w-4 h-4 text-sky-400" />
-                        <span>{vibrationTestState === 'sys-vibrating' ? '🔔 Wysłano powiadomienie...' : '🔔 Test powiadomienia'}</span>
+                        <Bell className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Test powiadomienia w tle</span>
                       </button>
                     </div>
-
-                    {/* Vibration Feedback Banner */}
-                    {vibrationTestState === 'vibrating' && (
-                      <div className="p-2 rounded-lg bg-amber-500/20 border border-amber-500/50 text-[11px] text-amber-200 flex items-center gap-2 animate-in fade-in">
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-                        <span>Wysłano 1.5 sekundy potężnej wibracji silnika + rezonans obudowy!</span>
-                      </div>
-                    )}
 
                     {/* Crucial Guide: How to get full vibration power without vibrating keyboard */}
                     <div className="p-3 rounded-xl bg-slate-900 border border-amber-500/40 text-[11px] text-slate-300 space-y-2">

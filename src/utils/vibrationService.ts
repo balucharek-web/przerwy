@@ -94,40 +94,52 @@ export function getVibrationIntensity(): VibrationIntensity {
   return currentIntensity;
 }
 
+export function testContinuousVibration(durationMs: number = 2000): boolean {
+  playHeavyChassisRumble(durationMs / 1000);
+  if (!isVibrationSupported()) return false;
+  try {
+    // Single number integer triggers Android's continuous OneShot motor PWM at 100% duty cycle
+    return navigator.vibrate(durationMs);
+  } catch (err) {
+    console.warn('Continuous vibration failed:', err);
+    return false;
+  }
+}
+
 export function getButtonPattern(intensity: VibrationIntensity = currentIntensity): number[] {
   switch (intensity) {
-    case 'turbo': return [450, 120, 450]; // Dwa potężne uderzenia po prawie pół sekundy
-    case 'strong': return [300, 90, 300];
-    case 'light': return [180, 60, 180];
-    default: return [450, 120, 450];
+    case 'turbo': return [800, 100, 800]; // Ponad 1.6 sekundy potężnej pracy silnika
+    case 'strong': return [500, 100, 500];
+    case 'light': return [250, 60, 250];
+    default: return [800, 100, 800];
   }
 }
 
 export function getWarningPattern(intensity: VibrationIntensity = currentIntensity): number[] {
   switch (intensity) {
-    case 'turbo': return [700, 150, 700, 150, 900]; // Ponad 2.6 sekundy głębokiej wibracji
-    case 'strong': return [500, 120, 500, 120, 700];
-    case 'light': return [300, 100, 300, 100, 450];
-    default: return [700, 150, 700, 150, 900];
+    case 'turbo': return [1200, 200, 1200, 200, 1500]; // Prawie 4.5 sekundy jak dzwoniący telefon!
+    case 'strong': return [800, 150, 800, 150, 1000];
+    case 'light': return [400, 100, 400, 100, 600];
+    default: return [1200, 200, 1200, 200, 1500];
   }
 }
 
 export function getLimitReachedPattern(intensity: VibrationIntensity = currentIntensity): number[] {
   switch (intensity) {
-    case 'turbo': return [1000, 200, 1000, 200, 1400]; // Ponad 3.8 sekundy potężnej wibracji alarmu
-    case 'strong': return [750, 180, 750, 180, 1000];
-    case 'light': return [450, 120, 450, 120, 700];
-    default: return [1000, 200, 1000, 200, 1400];
+    case 'turbo': return [1500, 250, 1500, 250, 2000]; // Ponad 5.5 sekundy ciągłego buczenia!
+    case 'strong': return [1000, 200, 1000, 200, 1200];
+    case 'light': return [500, 150, 500, 150, 700];
+    default: return [1500, 250, 1500, 250, 2000];
   }
 }
 
 export function getTickPattern(minuteCount: number, intensity: VibrationIntensity = currentIntensity): number[] {
   const isMilestone = minuteCount % 5 === 0;
   switch (intensity) {
-    case 'turbo': return isMilestone ? [450, 120, 500] : [350];
-    case 'strong': return isMilestone ? [300, 100, 350] : [250];
-    case 'light': return isMilestone ? [200, 80, 220] : [150];
-    default: return isMilestone ? [450, 120, 500] : [350];
+    case 'turbo': return isMilestone ? [800, 150, 800] : [600];
+    case 'strong': return isMilestone ? [500, 100, 500] : [350];
+    case 'light': return isMilestone ? [250, 80, 250] : [180];
+    default: return isMilestone ? [800, 150, 800] : [600];
   }
 }
 
