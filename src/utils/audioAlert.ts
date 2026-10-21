@@ -245,8 +245,10 @@ export async function sendSystemNotification(title: string, options?: ExtendedNo
   const notificationOptions: any = {
     icon: `${appBase}/pwa-192x192.png`,
     badge: `${appBase}/icon.svg`,
-    vibrate: [400, 150, 400, 150, 600],
+    vibrate: [500, 150, 500, 150, 800],
     visibility: 'public',
+    silent: false,
+    renotify: true,
     ...options,
   };
 

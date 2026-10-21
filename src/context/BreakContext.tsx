@@ -19,6 +19,7 @@ import {
 } from '../utils/notificationControl';
 import {
   triggerHaptic,
+  triggerSystemVibration,
   triggerScreenLockConfirmation,
   triggerCountdownTick,
   triggerWarningVibration,
@@ -735,14 +736,18 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const testVibration = (type: 'tick' | 'warning' | 'lock' | 'strong' = 'strong'): boolean => {
     if (type === 'tick') {
-      return triggerHaptic([180, 80, 240]);
+      triggerSystemVibration([220, 80, 240]);
+      return true;
     } else if (type === 'lock') {
-      return triggerHaptic([120, 80, 120]);
+      triggerSystemVibration([200, 80, 200]);
+      return true;
     } else if (type === 'warning') {
-      return triggerHaptic([300, 100, 300, 100, 500]);
+      triggerSystemVibration([500, 150, 500, 150, 800]);
+      return true;
     } else {
-      // Strong, multi-pulse test vibration sequence
-      return triggerHaptic([350, 120, 350, 120, 500]);
+      // Strong, multi-pulse test vibration sequence (bypasses haptic touch toggle)
+      triggerSystemVibration([400, 120, 400, 120, 600]);
+      return true;
     }
   };
 

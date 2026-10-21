@@ -83,11 +83,64 @@ export function triggerHaptic(
 }
 
 /**
+ * Triggers a real Android SYSTEM VIBRATION via the Notification Manager.
+ * 
+ * WHY THIS IS CRUCIAL FOR ANDROID & MOTOROLA:
+ * When a user turns OFF "Reakcja haptyczna przy dotknięciu" (Haptic touch feedback) in Android settings,
+ * the Android OS blocks web browser `navigator.vibrate` calls!
+ * 
+ * HOWEVER, Android handles System Notifications in a completely separate channel:
+ * "Wibracje powiadomień i alarmów" (USAGE_NOTIFICATION).
+ * By dispatching an active ServiceWorker notification pulse with `vibrate` and `renotify: true`,
+ * Android's native NotificationManager triggers the phone's physical vibration motor
+ * REGARDLESS of whether the user has disabled haptic touch feedback in their phone!
+ */
+export async function triggerSystemVibration(pattern: number[] = [250, 100, 250]): Promise<boolean> {
+  // 1. Always attempt standard vibration as well
+  triggerHaptic(pattern);
+
+  // 2. Dispatch system notification vibration via Service Worker
+  if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
+    if (Notification.permission === 'granted') {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && reg.showNotification) {
+          const buzzTag = `sys-buzz-${Date.now()}`;
+          await reg.showNotification('⏱️ PrzerwaPro', {
+            body: 'Wibracja systemowa',
+            tag: buzzTag,
+            icon: './pwa-192x192.png',
+            badge: './icon.svg',
+            silent: false,
+            renotify: true,
+            vibrate: pattern,
+            data: { isBuzz: true },
+          } as any);
+
+          // Auto-close the temporary buzz card after 400ms so it leaves no clutter in the notification shade
+          setTimeout(async () => {
+            try {
+              const notifs = await reg.getNotifications({ tag: buzzTag });
+              notifs.forEach((n) => n.close());
+            } catch {}
+          }, 450);
+          return true;
+        }
+      } catch (err) {
+        console.warn('System notification vibration failed:', err);
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Mechanical dual-pulse haptic click for button presses (Start/Stop).
- * Strong enough to overcome inertia on Motorola ERM/LRA motors.
+ * Uses real system notification vibration to work even if haptic touch is OFF in phone settings.
  */
 export function triggerButtonHaptic() {
-  triggerHaptic([160, 60, 160]);
+  triggerSystemVibration([220, 80, 220]);
 }
 
 /**
@@ -95,7 +148,7 @@ export function triggerButtonHaptic() {
  * (confirms that the countdown is running in your pocket)
  */
 export function triggerScreenLockConfirmation() {
-  triggerHaptic([200, 100, 200]);
+  triggerSystemVibration([220, 100, 220]);
 }
 
 /**
@@ -106,10 +159,10 @@ export function triggerScreenLockConfirmation() {
 export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolean = false) {
   if (minuteCount % 5 === 0) {
     // 5-minute milestone: double pulse
-    triggerHaptic([260, 100, 300]);
+    triggerSystemVibration([260, 100, 300]);
   } else {
     // Regular single-minute pulse
-    triggerHaptic([220]);
+    triggerSystemVibration([220]);
   }
 }
 
@@ -117,12 +170,12 @@ export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolea
  * 3-minute warning alarm vibration (tactile sequence)
  */
 export function triggerWarningVibration(onlyWhenHidden: boolean = false) {
-  triggerHaptic([500, 150, 500, 150, 800]);
+  triggerSystemVibration([500, 150, 500, 150, 800]);
 }
 
 /**
  * 0-minute final limit reached alarm vibration
  */
 export function triggerLimitReachedVibration(onlyWhenHidden: boolean = false) {
-  triggerHaptic([800, 200, 800, 200, 1200]);
+  triggerSystemVibration([800, 200, 800, 200, 1200]);
 }
