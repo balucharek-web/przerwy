@@ -158,7 +158,7 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
       badge: badgeUrl,
       actions,
       renotify: stateChanged && isBreakActive,
-      vibrate: stateChanged && isBreakActive ? [220, 80, 220] : undefined,
+      vibrate: stateChanged && isBreakActive ? [450, 120, 450] : undefined,
       requireInteraction: isBreakActive,
       ongoing: isBreakActive,
       timestamp: startDate.getTime(),

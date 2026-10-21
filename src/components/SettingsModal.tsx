@@ -62,6 +62,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
 
   const [vibrateEnabled, setVibrateEnabled] = useState(settings.vibrateEnabled ?? true);
+  const [vibrationIntensity, setVibrationIntensityState] = useState<'turbo' | 'strong' | 'light'>(settings.vibrationIntensity ?? 'turbo');
   const [countdownVibrationEnabled, setCountdownVibrationEnabled] = useState(settings.countdownVibrationEnabled ?? true);
   const [vibrateOnlyWhenScreenLocked, setVibrateOnlyWhenScreenLocked] = useState(settings.vibrateOnlyWhenScreenLocked ?? true);
   const [countdownVibrationIntervalMinutes, setCountdownVibrationIntervalMinutes] = useState(settings.countdownVibrationIntervalMinutes ?? 1);
@@ -84,13 +85,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const handleTestSystemVibration = async () => {
+  const handleTestSystemVibration = async (patternToTest?: number[]) => {
     setVibrationTestState('sys-vibrating');
-    await sendSystemNotification('📳 Test wibracji systemowej (Android)', {
-      body: 'System Android wygenerował wibrację z powiadomienia!',
+    await sendSystemNotification('📳 Test wibracji systemowej (PrzerwaPro)', {
+      body: 'Maksymalna wibracja systemowa Androida!',
       tag: 'test-sys-vibration',
       renotify: true,
-      vibrate: [600, 200, 600, 200, 800],
+      vibrate: patternToTest || [700, 150, 700, 150, 900],
       requireInteraction: true,
     });
     setTimeout(() => setVibrationTestState('idle'), 3000);
@@ -110,6 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       alarmVolume: Number(alarmVolume),
       browserNotificationsEnabled: browserNotifications,
       vibrateEnabled,
+      vibrationIntensity,
       countdownVibrationEnabled,
       vibrateOnlyWhenScreenLocked,
       countdownVibrationIntervalMinutes: Number(countdownVibrationIntervalMinutes) || 1,
@@ -410,20 +412,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
                 {vibrateEnabled && (
                   <div className="space-y-2.5 pt-1">
+                    {/* Intensity selector */}
+                    <div className="flex flex-col gap-1.5 p-2.5 rounded-xl bg-slate-900/90 border border-slate-700/80">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                          <span>⚡ Siła wibracji:</span>
+                        </span>
+                        <span className="text-[10px] text-amber-400 font-semibold">
+                          {vibrationIntensity === 'turbo' && '🚀 Turbo / Maksymalna (Polecane dla Motoroli)'}
+                          {vibrationIntensity === 'strong' && '⚡ Wyrazista'}
+                          {vibrationIntensity === 'light' && '🍃 Dyskretna'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5 pt-1">
+                        {[
+                          { id: 'turbo', label: '🚀 Turbo (Max)' },
+                          { id: 'strong', label: '⚡ Mocna' },
+                          { id: 'light', label: '🍃 Lekka' },
+                        ].map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => {
+                              const val = opt.id as 'turbo' | 'strong' | 'light';
+                              setVibrationIntensityState(val);
+                              updateSettings({ vibrationIntensity: val });
+                              const pat = val === 'turbo' ? [500, 120, 500] : val === 'strong' ? [320, 90, 320] : [180, 60, 180];
+                              handleTestSystemVibration(pat);
+                            }}
+                            className={`py-2 px-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shadow-sm active:scale-95 ${
+                              vibrationIntensity === opt.id
+                                ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400 shadow-md shadow-amber-500/20'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                            }`}
+                          >
+                            <span>{opt.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     {/* System Vibration Test Button */}
                     <div className="flex flex-col gap-2">
                       <button
                         type="button"
-                        onClick={handleTestSystemVibration}
+                        onClick={() => handleTestSystemVibration()}
                         className={`w-full py-2.5 px-3 rounded-xl border text-xs font-bold transition cursor-pointer flex items-center justify-center gap-2 shadow-sm active:scale-95 ${
                           vibrationTestState === 'sys-vibrating'
                             ? 'bg-amber-500 text-slate-950 border-amber-400 animate-pulse'
                             : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/40'
                         }`}
-                        title="Przetestuj wibrację systemową Androida"
+                        title="Przetestuj pełną wibrację systemową Androida"
                       >
                         <Bell className="w-4 h-4 text-amber-400" />
-                        <span>{vibrationTestState === 'sys-vibrating' ? '📳 Wibracja systemowa wysłana...' : '🔔 Przetestuj wibrację systemową (Powiadomienie)'}</span>
+                        <span>{vibrationTestState === 'sys-vibrating' ? '📳 Testowa wibracja wysłana...' : '🔔 Przetestuj pełną wibrację systemową'}</span>
                       </button>
                     </div>
 

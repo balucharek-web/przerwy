@@ -17,6 +17,7 @@ export interface UserSettings {
   alarmVolume?: number; // 0 to 100, default 80
   browserNotificationsEnabled: boolean;
   vibrateEnabled: boolean;
+  vibrationIntensity?: 'turbo' | 'strong' | 'light'; // default 'turbo': maximum vibration power for Motorola & thick pockets
   countdownVibrationEnabled?: boolean; // default true: subtle haptic pulses in pocket during break
   vibrateOnlyWhenScreenLocked?: boolean; // default true: vibrate ONLY when phone screen is locked/hidden
   countdownVibrationIntervalMinutes?: number; // default 1: pulse every 1, 2, or 5 min

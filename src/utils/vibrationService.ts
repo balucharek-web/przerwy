@@ -82,6 +82,55 @@ export function triggerHaptic(
   }
 }
 
+export type VibrationIntensity = 'turbo' | 'strong' | 'light';
+
+let currentIntensity: VibrationIntensity = 'turbo';
+
+export function setVibrationIntensity(intensity: VibrationIntensity) {
+  currentIntensity = intensity;
+}
+
+export function getVibrationIntensity(): VibrationIntensity {
+  return currentIntensity;
+}
+
+export function getButtonPattern(intensity: VibrationIntensity = currentIntensity): number[] {
+  switch (intensity) {
+    case 'turbo': return [450, 120, 450]; // Dwa potężne uderzenia po prawie pół sekundy
+    case 'strong': return [300, 90, 300];
+    case 'light': return [180, 60, 180];
+    default: return [450, 120, 450];
+  }
+}
+
+export function getWarningPattern(intensity: VibrationIntensity = currentIntensity): number[] {
+  switch (intensity) {
+    case 'turbo': return [700, 150, 700, 150, 900]; // Ponad 2.6 sekundy głębokiej wibracji
+    case 'strong': return [500, 120, 500, 120, 700];
+    case 'light': return [300, 100, 300, 100, 450];
+    default: return [700, 150, 700, 150, 900];
+  }
+}
+
+export function getLimitReachedPattern(intensity: VibrationIntensity = currentIntensity): number[] {
+  switch (intensity) {
+    case 'turbo': return [1000, 200, 1000, 200, 1400]; // Ponad 3.8 sekundy potężnej wibracji alarmu
+    case 'strong': return [750, 180, 750, 180, 1000];
+    case 'light': return [450, 120, 450, 120, 700];
+    default: return [1000, 200, 1000, 200, 1400];
+  }
+}
+
+export function getTickPattern(minuteCount: number, intensity: VibrationIntensity = currentIntensity): number[] {
+  const isMilestone = minuteCount % 5 === 0;
+  switch (intensity) {
+    case 'turbo': return isMilestone ? [450, 120, 500] : [350];
+    case 'strong': return isMilestone ? [300, 100, 350] : [250];
+    case 'light': return isMilestone ? [200, 80, 220] : [150];
+    default: return isMilestone ? [450, 120, 500] : [350];
+  }
+}
+
 /**
  * Triggers a real Android SYSTEM VIBRATION via the Notification Manager.
  * 
@@ -95,7 +144,7 @@ export function triggerHaptic(
  * Android's native NotificationManager triggers the phone's physical vibration motor
  * REGARDLESS of whether the user has disabled haptic touch feedback in their phone!
  */
-export async function triggerSystemVibration(pattern: number[] = [250, 100, 250]): Promise<boolean> {
+export async function triggerSystemVibration(pattern: number[] = getButtonPattern()): Promise<boolean> {
   // 1. Always attempt standard vibration as well
   triggerHaptic(pattern);
 
@@ -107,7 +156,7 @@ export async function triggerSystemVibration(pattern: number[] = [250, 100, 250]
         if (reg && reg.showNotification) {
           const buzzTag = `sys-buzz-${Date.now()}`;
           await reg.showNotification('⏱️ PrzerwaPro', {
-            body: 'Wibracja systemowa',
+            body: 'Mocna wibracja systemowa',
             tag: buzzTag,
             icon: './pwa-192x192.png',
             badge: './icon.svg',
@@ -117,13 +166,17 @@ export async function triggerSystemVibration(pattern: number[] = [250, 100, 250]
             data: { isBuzz: true },
           } as any);
 
-          // Auto-close the temporary buzz card after 400ms so it leaves no clutter in the notification shade
+          // CRITICAL: Calculate exact total duration of the pattern so Android does NOT terminate
+          // the vibration motor early before all vibration pulses complete!
+          const totalDuration = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
+          const closeDelay = Math.max(1200, totalDuration + 300);
+
           setTimeout(async () => {
             try {
               const notifs = await reg.getNotifications({ tag: buzzTag });
               notifs.forEach((n) => n.close());
             } catch {}
-          }, 450);
+          }, closeDelay);
           return true;
         }
       } catch (err) {
@@ -140,7 +193,7 @@ export async function triggerSystemVibration(pattern: number[] = [250, 100, 250]
  * Uses real system notification vibration to work even if haptic touch is OFF in phone settings.
  */
 export function triggerButtonHaptic() {
-  triggerSystemVibration([220, 80, 220]);
+  triggerSystemVibration(getButtonPattern());
 }
 
 /**
@@ -148,34 +201,26 @@ export function triggerButtonHaptic() {
  * (confirms that the countdown is running in your pocket)
  */
 export function triggerScreenLockConfirmation() {
-  triggerSystemVibration([220, 100, 220]);
+  triggerSystemVibration(getButtonPattern());
 }
 
 /**
- * Periodic countdown pulse:
- * - Regular minute: 1 distinct pulse (220ms)
- * - 5-minute milestone (5, 10, 15, 20 min): 2 distinct pulses (260ms, 100ms pause, 300ms)
+ * Periodic countdown pulse in pocket:
  */
 export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolean = false) {
-  if (minuteCount % 5 === 0) {
-    // 5-minute milestone: double pulse
-    triggerSystemVibration([260, 100, 300]);
-  } else {
-    // Regular single-minute pulse
-    triggerSystemVibration([220]);
-  }
+  triggerSystemVibration(getTickPattern(minuteCount));
 }
 
 /**
  * 3-minute warning alarm vibration (tactile sequence)
  */
 export function triggerWarningVibration(onlyWhenHidden: boolean = false) {
-  triggerSystemVibration([500, 150, 500, 150, 800]);
+  triggerSystemVibration(getWarningPattern());
 }
 
 /**
  * 0-minute final limit reached alarm vibration
  */
 export function triggerLimitReachedVibration(onlyWhenHidden: boolean = false) {
-  triggerSystemVibration([800, 200, 800, 200, 1200]);
+  triggerSystemVibration(getLimitReachedPattern());
 }

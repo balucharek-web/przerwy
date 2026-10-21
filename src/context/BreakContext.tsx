@@ -20,6 +20,11 @@ import {
 import {
   triggerHaptic,
   triggerSystemVibration,
+  setVibrationIntensity,
+  getButtonPattern,
+  getTickPattern,
+  getWarningPattern,
+  getLimitReachedPattern,
   triggerScreenLockConfirmation,
   triggerCountdownTick,
   triggerWarningVibration,
@@ -73,6 +78,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   alarmVolume: 80,
   browserNotificationsEnabled: true,
   vibrateEnabled: true,
+  vibrationIntensity: 'turbo',
   countdownVibrationEnabled: true,
   vibrateOnlyWhenScreenLocked: true,
   countdownVibrationIntervalMinutes: 1,
@@ -251,7 +257,15 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
+    if (newSettings.vibrationIntensity) {
+      setVibrationIntensity(newSettings.vibrationIntensity);
+    }
   };
+
+  // Sync vibration intensity with vibration service
+  useEffect(() => {
+    setVibrationIntensity(settings.vibrationIntensity || 'turbo');
+  }, [settings.vibrationIntensity]);
 
   // Save breaks
   useEffect(() => {
@@ -736,17 +750,17 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const testVibration = (type: 'tick' | 'warning' | 'lock' | 'strong' = 'strong'): boolean => {
     if (type === 'tick') {
-      triggerSystemVibration([220, 80, 240]);
+      triggerSystemVibration(getTickPattern(1));
       return true;
     } else if (type === 'lock') {
-      triggerSystemVibration([200, 80, 200]);
+      triggerSystemVibration(getButtonPattern());
       return true;
     } else if (type === 'warning') {
-      triggerSystemVibration([500, 150, 500, 150, 800]);
+      triggerSystemVibration(getWarningPattern());
       return true;
     } else {
-      // Strong, multi-pulse test vibration sequence (bypasses haptic touch toggle)
-      triggerSystemVibration([400, 120, 400, 120, 600]);
+      // Full power test vibration sequence (Turbo / Maximum)
+      triggerSystemVibration(getWarningPattern());
       return true;
     }
   };
