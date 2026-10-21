@@ -43,39 +43,28 @@ export function triggerHaptic(
 
 /**
  * Triggers pure Android System Notification vibration.
+ * sendNotification is ONLY true for real alarm events (warning / limit reached).
  */
 export async function triggerSystemVibration(pattern: number[] = [400, 150, 400], sendNotification: boolean = false): Promise<boolean> {
   // 1. Hardware motor call
   const hapticSuccess = triggerHaptic(pattern);
 
-  // 2. If screen is hidden (pocket) or for alarms, dispatch via Service Worker
-  const isHidden = isScreenLockedOrHidden();
-  if ((sendNotification || isHidden) && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
+  // 2. Dispatch system notification ONLY when explicitly requested for real alarms
+  if (sendNotification && typeof window !== 'undefined' && 'serviceWorker' in navigator && 'Notification' in window) {
     if (Notification.permission === 'granted') {
       try {
         const reg = await navigator.serviceWorker.ready;
         if (reg && reg.showNotification) {
-          const buzzTag = `sys-buzz-${Date.now()}`;
-          await reg.showNotification('⏱️ PrzerwaPro', {
-            body: 'Powiadomienie systemowe',
+          const buzzTag = `sys-alarm-${Date.now()}`;
+          await reg.showNotification('⏱️ PrzerwaPro - Alarm', {
+            body: 'Czas przerwy dobiega końca!',
             tag: buzzTag,
             icon: './pwa-192x192.png',
             badge: './icon.svg',
             silent: false,
             renotify: true,
             vibrate: pattern,
-            data: { isBuzz: true },
           } as any);
-
-          const totalDuration = Array.isArray(pattern) ? pattern.reduce((a, b) => a + b, 0) : pattern;
-          const closeDelay = Math.max(1200, totalDuration + 300);
-
-          setTimeout(async () => {
-            try {
-              const notifs = await reg.getNotifications({ tag: buzzTag });
-              notifs.forEach((n) => n.close());
-            } catch {}
-          }, closeDelay);
           return true;
         }
       } catch (err) {
@@ -88,7 +77,7 @@ export async function triggerSystemVibration(pattern: number[] = [400, 150, 400]
 }
 
 export function getButtonPattern(): number[] {
-  return [300, 100, 300];
+  return [200];
 }
 
 export function getWarningPattern(): number[] {
@@ -100,7 +89,7 @@ export function getLimitReachedPattern(): number[] {
 }
 
 export function getTickPattern(minuteCount: number): number[] {
-  return minuteCount % 5 === 0 ? [400, 100, 400] : [300];
+  return minuteCount % 5 === 0 ? [350, 100, 350] : [250];
 }
 
 export function setVibrationIntensity(_intensity: any) {}
@@ -115,39 +104,39 @@ export function testContinuousVibration(durationMs: number = 1500): boolean {
 }
 
 /**
- * Native click vibration for buttons (Start/Stop)
+ * Click vibration for buttons (Start/Stop) - MOTOR ONLY, NO NOTIFICATION
  */
 export function triggerButtonHaptic() {
-  triggerSystemVibration([300, 100, 300]);
+  triggerHaptic([200]);
 }
 
 /**
- * Native pocket confirmation when screen is locked
+ * Pocket confirmation when screen is locked - MOTOR ONLY, NO NOTIFICATION
  */
 export function triggerScreenLockConfirmation() {
-  triggerSystemVibration([250, 100, 250]);
+  triggerHaptic([250, 100, 250]);
 }
 
 /**
- * Native periodic countdown pulse in pocket
+ * Periodic countdown pulse in pocket - MOTOR ONLY, NO NOTIFICATION
  */
-export function triggerCountdownTick(minuteCount: number, onlyWhenHidden: boolean = false) {
+export function triggerCountdownTick(minuteCount: number, _onlyWhenHidden: boolean = false) {
   if (minuteCount % 5 === 0) {
-    triggerSystemVibration([400, 100, 400]);
+    triggerHaptic([350, 100, 350]);
   } else {
-    triggerSystemVibration([300]);
+    triggerHaptic([250]);
   }
 }
 
 /**
- * 3-minute warning alarm vibration
+ * 3-minute warning alarm vibration (with system notification)
  */
 export function triggerWarningVibration(onlyWhenHidden: boolean = false) {
   triggerSystemVibration([600, 150, 600, 150, 800], true);
 }
 
 /**
- * 0-minute final limit reached alarm vibration
+ * 0-minute final limit reached alarm vibration (with system notification)
  */
 export function triggerLimitReachedVibration(onlyWhenHidden: boolean = false) {
   triggerSystemVibration([800, 200, 800, 200, 1000], true);

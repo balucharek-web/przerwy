@@ -330,7 +330,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // Vibrates periodically (e.g. every 1 or 5 min), but ONLY when screen is locked/hidden if configured
       if (settings.vibrateEnabled !== false && settings.countdownVibrationEnabled !== false) {
         const isLocked = isScreenLockedOrHidden();
-        const canVibrate = !settings.vibrateOnlyWhenScreenLocked || isLocked;
+        const canVibrate = settings.vibrateOnlyWhenScreenLocked ? isLocked : true;
         if (canVibrate) {
           const elapsedMinutes = Math.floor(elapsed / 60);
           const interval = Math.max(1, settings.countdownVibrationIntervalMinutes || 1);
@@ -341,7 +341,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             lastVibratedMinuteRef.current !== elapsedMinutes
           ) {
             lastVibratedMinuteRef.current = elapsedMinutes;
-            triggerCountdownTick(elapsedMinutes, false);
+            triggerCountdownTick(elapsedMinutes);
           }
         }
       }
