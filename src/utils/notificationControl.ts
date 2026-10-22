@@ -18,7 +18,7 @@ export interface NotificationControlState {
   allowanceSeconds: number;
   enabled: boolean;
   onlyDuringBreak?: boolean;
-  titleStyle?: 'countdown_and_return' | 'countdown_only' | 'return_only';
+  titleStyle?: 'return_only' | 'countdown_and_return' | 'countdown_only' | 'minutes_and_return';
 }
 
 /**
@@ -128,6 +128,7 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     const absRemaining = Math.abs(remainingSeconds);
     const countdownStr = formatDuration(absRemaining);
     const currentDurationStr = formatDuration(currentBreakSeconds);
+    const remainingMinutes = Math.ceil(absRemaining / 60);
 
     // Title: Display countdown timer next to or instead of return time!
     let title: string;
@@ -136,11 +137,14 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
         title = `⚠️ +${countdownStr} (Po czasie!) • Powrót: ${returnTimeStr}`;
       } else {
         switch (state.titleStyle) {
+          case 'return_only':
+            title = `☕ Powrót do pracy: ${returnTimeStr} (Start: ${startTimeStr})`;
+            break;
+          case 'minutes_and_return':
+            title = `⏳ Pozostało ok. ${remainingMinutes} min • Powrót: ${returnTimeStr}`;
+            break;
           case 'countdown_only':
             title = `⏳ Pozostało: ${countdownStr}`;
-            break;
-          case 'return_only':
-            title = `☕ Powrót do pracy: ${returnTimeStr}`;
             break;
           case 'countdown_and_return':
           default:
@@ -153,7 +157,7 @@ export async function updateSystemNotificationBar(state: NotificationControlStat
     }
     
     const body = isBreakActive
-      ? `Pozostało: ${isOvertime ? `+${countdownStr} po limicie` : countdownStr} • Trwa: ${currentDurationStr} (Start: ${startTimeStr})`
+      ? `Koniec przerwy dokładnie o ${returnTimeStr} • Start: ${startTimeStr} (Limit: ${formatDuration(allowanceSeconds)})`
       : `Pozostały limit na dzisiaj: ${formatDuration(remainingSeconds)}`;
 
     // Android notification action buttons

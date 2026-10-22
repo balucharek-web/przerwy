@@ -60,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
-  const [notificationBarTitleStyle, setNotificationBarTitleStyle] = useState<'countdown_and_return' | 'countdown_only' | 'return_only'>(settings.notificationBarTitleStyle ?? 'countdown_and_return');
+  const [notificationBarTitleStyle, setNotificationBarTitleStyle] = useState<'return_only' | 'countdown_and_return' | 'countdown_only' | 'minutes_and_return'>(settings.notificationBarTitleStyle ?? 'return_only');
 
   const [vibrateEnabled, setVibrateEnabled] = useState(settings.vibrateEnabled ?? true);
   const [vibrationIntensity, setVibrationIntensityState] = useState<'turbo' | 'strong' | 'light'>(settings.vibrationIntensity ?? 'turbo');
@@ -372,9 +372,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       </span>
                       <div className="grid grid-cols-1 gap-1.5 pt-1">
                         {[
-                          { id: 'countdown_and_return', label: '⏳ Odliczanie + Godzina powrotu (Polecane)', desc: 'np. ⏳ 12:45 • Powrót: 11:40' },
-                          { id: 'countdown_only', label: '⏱️ Tylko zegar odliczania', desc: 'np. ⏳ Pozostało: 12:45' },
-                          { id: 'return_only', label: '☕ Tylko godzina powrotu', desc: 'np. ☕ Powrót do pracy: 11:40' },
+                          { 
+                            id: 'return_only', 
+                            label: '☕ Godzina powrotu (100% odporna na gry w tle) - ZALECANE', 
+                            desc: 'np. ☕ Powrót do pracy: 09:14 (Start: 08:44) • Zawsze pewne, nigdy się nie zatnie!' 
+                          },
+                          { 
+                            id: 'minutes_and_return', 
+                            label: '⏳ Minuty + Godzina powrotu', 
+                            desc: 'np. ⏳ Pozostało ok. 22 min • Powrót: 09:14 • Bez zacinania sekund' 
+                          },
+                          { 
+                            id: 'countdown_and_return', 
+                            label: '⏱️ Pełny zegar sekundowy + Powrót', 
+                            desc: 'np. ⏳ 22:15 • Powrót: 09:14 (Gry 3D wstrzymują sekundy w tle z powodu polityki Androida)' 
+                          },
+                          { 
+                            id: 'countdown_only', 
+                            label: '⏳ Tylko zegar odliczania', 
+                            desc: 'np. ⏳ Pozostało: 22:15' 
+                          },
                         ].map((opt) => (
                           <label
                             key={opt.id}
