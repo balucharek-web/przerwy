@@ -251,3 +251,48 @@ export function updateMediaSessionControls(_state: NotificationControlState) {
     navigator.mediaSession.metadata = null;
   } catch {}
 }
+
+/**
+ * Schedules background alarms in Service Worker (survives app minimization!)
+ */
+export async function scheduleServiceWorkerAlarms(params: {
+  warningTimeMs: number;
+  limitTimeMs: number;
+  warningMinutes: number;
+  allowanceMinutes: number;
+}) {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (reg && reg.active) {
+      const origin = window.location.origin;
+      const cleanPath = window.location.pathname.replace(/\/+$/, '');
+      const appBase = `${origin}${cleanPath}`;
+      reg.active.postMessage({
+        type: 'SCHEDULE_BREAK_ALARMS',
+        ...params,
+        appBase,
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to schedule service worker alarms:', err);
+  }
+}
+
+/**
+ * Cancels background alarms in Service Worker when break ends
+ */
+export async function cancelServiceWorkerAlarms() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    if (reg && reg.active) {
+      reg.active.postMessage({
+        type: 'CANCEL_BREAK_ALARMS',
+      });
+    }
+  } catch (err) {
+    console.warn('Failed to cancel service worker alarms:', err);
+  }
+}
+

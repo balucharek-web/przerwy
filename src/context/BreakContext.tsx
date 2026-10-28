@@ -15,7 +15,9 @@ import {
   clearSystemNotificationBar, 
   getControlChannel, 
   requestNotificationPermission,
-  bindMediaSessionHandlers
+  bindMediaSessionHandlers,
+  scheduleServiceWorkerAlarms,
+  cancelServiceWorkerAlarms
 } from '../utils/notificationControl';
 import {
   triggerHaptic,
@@ -222,10 +224,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setActiveBreak(null);
       clearSystemNotificationBar();
       stopBackgroundKeepAlive();
+      cancelServiceWorkerAlarms();
     } else if (resolution === 'discard') {
       setActiveBreak(null);
       clearSystemNotificationBar();
       stopBackgroundKeepAlive();
+      cancelServiceWorkerAlarms();
     }
     setPowerOffWarning(null);
   };
@@ -670,8 +674,19 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setUndoState(null);
     }, 8000);
 
-    // Schedule server-side Web Push alarm as safety net for aggressive Android background sleep
+    // Schedule background alarms in Service Worker (survives app minimization on Android!)
+    const totalRemainingAtStart = allowanceSeconds - todayCompletedSeconds;
+    const warningThresholdSeconds = settings.warningMinutesBeforeEnd * 60;
+    const warningDelaySeconds = Math.max(0, totalRemainingAtStart - warningThresholdSeconds);
+    const limitDelaySeconds = Math.max(0, totalRemainingAtStart);
 
+    const nowMs = Date.now();
+    scheduleServiceWorkerAlarms({
+      warningTimeMs: nowMs + warningDelaySeconds * 1000,
+      limitTimeMs: nowMs + limitDelaySeconds * 1000,
+      warningMinutes: settings.warningMinutesBeforeEnd,
+      allowanceMinutes: settings.dailyAllowanceMinutes,
+    });
 
     if (settings.googleChatWebhookUrl) {
       setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
@@ -695,6 +710,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTimeout(() => {
       isStoppingRef.current = false;
     }, 1200);
+
+    cancelServiceWorkerAlarms();
 
     const now = new Date();
     const startMs = new Date(activeBreak.startTime).getTime();
@@ -732,6 +749,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     releaseScreenWakeLock();
     clearSystemNotificationBar();
     stopBackgroundKeepAlive();
+    cancelServiceWorkerAlarms();
     playToggleFeedback(false, settings.alarmVolume ?? 80);
 
     // Save undo state for stop

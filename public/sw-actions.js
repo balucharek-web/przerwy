@@ -110,3 +110,105 @@ self.addEventListener('notificationclick', (event) => {
     );
   }
 });
+
+// 3. Background alarm scheduler for Warning and Limit Alarms (survives app minimization!)
+let scheduledWarningTimer = null;
+let scheduledLimitTimer = null;
+
+self.addEventListener('message', (event) => {
+  if (!event.data) return;
+
+  if (event.data.type === 'SCHEDULE_BREAK_ALARMS') {
+    const { warningTimeMs, limitTimeMs, warningMinutes, allowanceMinutes, appBase } = event.data;
+    const base = appBase || '';
+
+    if (scheduledWarningTimer) clearTimeout(scheduledWarningTimer);
+    if (scheduledLimitTimer) clearTimeout(scheduledLimitTimer);
+    scheduledWarningTimer = null;
+    scheduledLimitTimer = null;
+
+    const now = Date.now();
+
+    // 1. Native Android AlarmManager Trigger (if supported by Chrome/Android)
+    if (typeof TimestampTrigger !== 'undefined') {
+      try {
+        if (warningTimeMs && warningTimeMs > now) {
+          self.registration.showNotification('⚠️ Zbliża się koniec przerwy!', {
+            body: `Zostały tylko ${warningMinutes || 3} minuty z limitu (${allowanceMinutes || 30} min). Czas wracać!`,
+            tag: 'break-warning-scheduled',
+            icon: `${base}/pwa-192x192.png`,
+            badge: `${base}/icon.svg`,
+            vibrate: [400, 150, 400, 150, 600],
+            renotify: true,
+            requireInteraction: true,
+            showTrigger: new TimestampTrigger(warningTimeMs),
+          });
+        }
+        if (limitTimeMs && limitTimeMs > now) {
+          self.registration.showNotification('⏰ Limit przerwy wykorzystany!', {
+            body: `Twój limit ${allowanceMinutes || 30} minut na dzisiaj właśnie się skończył. Wracaj do pracy!`,
+            tag: 'break-limit-scheduled',
+            icon: `${base}/pwa-192x192.png`,
+            badge: `${base}/icon.svg`,
+            vibrate: [1000, 300, 1000, 300, 1500],
+            renotify: true,
+            requireInteraction: true,
+            showTrigger: new TimestampTrigger(limitTimeMs),
+          });
+        }
+      } catch (err) {
+        console.warn('Native TimestampTrigger failed:', err);
+      }
+    }
+
+    // 2. Service Worker Background Timers
+    if (warningTimeMs && warningTimeMs > now) {
+      const delay = Math.max(50, warningTimeMs - now);
+      scheduledWarningTimer = setTimeout(() => {
+        self.registration.showNotification('⚠️ Zbliża się koniec przerwy!', {
+          body: `Zostały tylko ${warningMinutes || 3} minuty z limitu (${allowanceMinutes || 30} min). Czas wracać!`,
+          tag: 'break-warning',
+          icon: `${base}/pwa-192x192.png`,
+          badge: `${base}/icon.svg`,
+          vibrate: [400, 150, 400, 150, 600],
+          renotify: true,
+          requireInteraction: true,
+        });
+      }, delay);
+    }
+
+    if (limitTimeMs && limitTimeMs > now) {
+      const delay = Math.max(50, limitTimeMs - now);
+      scheduledLimitTimer = setTimeout(() => {
+        self.registration.showNotification('⏰ Limit przerwy wykorzystany!', {
+          body: `Twój limit ${allowanceMinutes || 30} minut na dzisiaj właśnie się skończył. Wracaj do pracy!`,
+          tag: 'break-limit',
+          icon: `${base}/pwa-192x192.png`,
+          badge: `${base}/icon.svg`,
+          vibrate: [1000, 300, 1000, 300, 1500],
+          renotify: true,
+          requireInteraction: true,
+        });
+      }, delay);
+    }
+  } else if (event.data.type === 'CANCEL_BREAK_ALARMS') {
+    if (scheduledWarningTimer) clearTimeout(scheduledWarningTimer);
+    if (scheduledLimitTimer) clearTimeout(scheduledLimitTimer);
+    scheduledWarningTimer = null;
+    scheduledLimitTimer = null;
+
+    try {
+      if (self.registration.getNotifications) {
+        self.registration.getNotifications({ includeTriggered: true }).then((notifs) => {
+          if (notifs) {
+            notifs.forEach((n) => {
+              if (n.tag === 'break-warning-scheduled' || n.tag === 'break-limit-scheduled') {
+                n.close();
+              }
+            });
+          }
+        });
+      }
+    } catch {}
+  }
+});
