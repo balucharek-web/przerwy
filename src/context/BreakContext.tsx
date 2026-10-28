@@ -33,6 +33,11 @@ import {
   isScreenLockedOrHidden,
 } from '../utils/vibrationService';
 import { requestScreenWakeLock, releaseScreenWakeLock } from '../utils/wakeLockService';
+import {
+  backupToIndexedDB,
+  restoreFromIndexedDB,
+  ensurePersistentStorage,
+} from '../utils/persistenceService';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -250,11 +255,14 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const limitAlarmFiredRef = useRef<boolean>(false);
   const lastVibratedMinuteRef = useRef<number>(-1);
 
-  // Save settings
+  // Save settings with dual-layer persistence (LocalStorage + IndexedDB)
   const updateSettings = (newSettings: Partial<UserSettings>) => {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      try {
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      backupToIndexedDB('settings', updated);
       return updated;
     });
     if (newSettings.vibrationIntensity) {
@@ -267,10 +275,81 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setVibrationIntensity(settings.vibrationIntensity || 'turbo');
   }, [settings.vibrationIntensity]);
 
-  // Save breaks
+  // Save breaks with dual-layer persistence (LocalStorage + IndexedDB)
   useEffect(() => {
-    localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(breaks));
+    try {
+      localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(breaks));
+    } catch {}
+    if (breaks.length > 0) {
+      backupToIndexedDB('breaks', breaks);
+    }
   }, [breaks]);
+
+  // Cross-tab synchronization and IndexedDB auto-recovery
+  useEffect(() => {
+    ensurePersistentStorage();
+
+    // 1. Recover from IndexedDB if LocalStorage was wiped by Android storage cleaner
+    const checkRecovery = async () => {
+      const isDefaultUser = settings.googleChatUserName === 'Pracownik';
+      const hasNoBreaks = breaks.length === 0;
+
+      if (isDefaultUser || hasNoBreaks) {
+        const [backupSettings, backupBreaks] = await Promise.all([
+          restoreFromIndexedDB<UserSettings>('settings'),
+          restoreFromIndexedDB<BreakRecord[]>('breaks'),
+        ]);
+
+        if (backupSettings && backupSettings.googleChatUserName && backupSettings.googleChatUserName !== 'Pracownik') {
+          console.log('🔄 Przywrócono ustawienia użytkownika z trwałej bazy IndexedDB!');
+          setSettings((prev) => {
+            const merged = { ...prev, ...backupSettings };
+            try {
+              localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+        }
+
+        if (backupBreaks && backupBreaks.length > 0 && breaks.length === 0) {
+          console.log(`🔄 Przywrócono ${backupBreaks.length} przerw z trwałej bazy IndexedDB!`);
+          setBreaks(backupBreaks);
+          try {
+            localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(backupBreaks));
+          } catch {}
+        }
+      }
+    };
+
+    checkRecovery();
+
+    // 2. Real-time sync across multiple open browser tabs / PWA windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === SETTINGS_STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          setSettings((prev) => ({ ...prev, ...parsed }));
+        } catch {}
+      } else if (e.key === RECORDS_STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (Array.isArray(parsed)) {
+            setBreaks(parsed);
+          }
+        } catch {}
+      } else if (e.key === ACTIVE_BREAK_KEY) {
+        try {
+          const parsed = e.newValue ? JSON.parse(e.newValue) : null;
+          setActiveBreak(parsed);
+        } catch {}
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Save active break
   useEffect(() => {
@@ -420,15 +499,42 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [activeBreak, settings.keepScreenAwakeDuringBreak]);
 
-  // Current day key based on resetHour
-  const currentDayKey = useMemo(() => {
-    return getDayKey(new Date(), settings.resetHour);
+  // Current day key based on resetHour with active timer and visibility change listener
+  const [currentDayKey, setCurrentDayKey] = useState<string>(() => getDayKey(new Date(), settings.resetHour));
+
+  useEffect(() => {
+    const checkDay = () => {
+      const key = getDayKey(new Date(), settings.resetHour);
+      setCurrentDayKey((prev) => (prev !== key ? key : prev));
+    };
+
+    checkDay();
+    const interval = setInterval(checkDay, 10000); // Check every 10 seconds
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkDay();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [settings.resetHour]);
 
-  // Breaks completed today
+  // Breaks completed today (resiliently matches both b.dayKey and actual b.startTime against currentDayKey)
   const todayCompletedBreaks = useMemo(() => {
-    return breaks.filter((b) => b.dayKey === currentDayKey);
-  }, [breaks, currentDayKey]);
+    return breaks.filter((b) => {
+      if (b.dayKey === currentDayKey) return true;
+      if (b.startTime) {
+        try {
+          return getDayKey(new Date(b.startTime), settings.resetHour) === currentDayKey;
+        } catch {}
+      }
+      return false;
+    });
+  }, [breaks, currentDayKey, settings.resetHour]);
 
   const todayCompletedSeconds = useMemo(() => {
     return todayCompletedBreaks.reduce((acc, curr) => acc + (curr.durationSeconds || 0), 0);
