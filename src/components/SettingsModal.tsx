@@ -247,11 +247,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
-                <div className="pt-1.5 border-t border-rose-500/20 text-[10px] text-slate-300 space-y-1">
-                  <p className="font-semibold text-amber-300">💡 Profil służbowy Androida (ikonka teczki 💼):</p>
-                  <p>
-                    Profil służbowy jest izolowany i chroniony przez politykę firmy. Często blokuje logowanie zewnętrznymi kontami Google (@gmail.com) lub blokuje wyskakujące okna. Aby zalogować się prywatnym kontem, otwórz aplikację w <strong>prywatnym profilu Chrome</strong> w telefonie.
-                  </p>
+                <div className="pt-1.5 border-t border-rose-500/20 text-[10px] text-slate-300 space-y-1.5">
+                  {authError.includes('Autoryzowane domeny') ? (
+                    <div className="space-y-1.5">
+                      <p className="font-semibold text-amber-300">🔑 Jednorazowa akcja (zajmie 10 sekund):</p>
+                      <p className="text-slate-200">
+                        Firebase ze względów bezpieczeństwa wymaga dodania adresu Twojej strony do listy dozwolonych:
+                      </p>
+                      <a
+                        href="https://console.firebase.google.com/project/kingsgroomer-1272/authentication/settings"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition shadow-sm"
+                      >
+                        <span>Otwórz Autoryzowane Domeny w Firebase</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                      <p className="text-slate-300 pt-1">
+                        Kliknij <strong>„Dodaj domenę”</strong> i wpisz: <strong className="text-white font-mono bg-slate-950 px-1.5 py-0.5 rounded border border-slate-700">balucharek-web.github.io</strong>
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="font-semibold text-amber-300">💡 Profil służbowy Androida (ikonka teczki 💼):</p>
+                      <p>
+                        Profil służbowy jest izolowany i chroniony przez politykę firmy. Często blokuje logowanie zewnętrznymi kontami Google (@gmail.com) lub blokuje wyskakujące okna. Aby zalogować się prywatnym kontem, otwórz aplikację w <strong>prywatnym profilu Chrome</strong> w telefonie.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
