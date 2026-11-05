@@ -31,7 +31,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
 
 function AppContent() {
-  const { activeBreak, undoState, undoLastAction, dismissUndo, googleUser, isGoogleSyncing, signInGoogle } = useBreaks();
+  const { activeBreak, undoState, undoLastAction, dismissUndo, googleUser, isGoogleSyncing, signInGoogle, authError } = useBreaks();
 
   const [activeTab, setActiveTab] = useState<'tracker' | 'calendar'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -65,6 +65,8 @@ function AppContent() {
     }
 
     const handlePopState = () => {
+      // Prevent closing modal if auth popup or sync is in progress
+      if (isGoogleSyncing) return;
       if (isSettingsOpen) setIsSettingsOpen(false);
       if (isWidgetGuideOpen) setIsWidgetGuideOpen(false);
       if (isShareOpen) setIsShareOpen(false);
@@ -156,12 +158,18 @@ function AppContent() {
                   </button>
                 ) : (
                   <button
-                    onClick={signInGoogle}
-                    className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    onClick={async () => {
+                      const ok = await signInGoogle();
+                      if (!ok) {
+                        setIsSettingsOpen(true);
+                      }
+                    }}
+                    disabled={isGoogleSyncing}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
                     title="Połącz z Dyskiem Google, aby chronić dane"
                   >
-                    <Cloud className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="hidden sm:inline">Chroń dane</span>
+                    <Cloud className={`w-3.5 h-3.5 ${isGoogleSyncing ? 'text-amber-400 animate-pulse' : 'text-slate-400'}`} />
+                    <span className="hidden sm:inline">{isGoogleSyncing ? 'Łączę...' : 'Chroń dane'}</span>
                   </button>
                 )}
 

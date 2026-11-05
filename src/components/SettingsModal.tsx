@@ -52,6 +52,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     signInGoogle,
     signOutGoogle,
     manualGoogleSync,
+    authError,
+    clearAuthError,
   } = useBreaks();
 
   const [userName, setUserName] = useState(settings.googleChatUserName);
@@ -225,6 +227,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </button>
               ) : null}
             </div>
+
+            {authError && (
+              <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-[11px] space-y-2 animate-in fade-in">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-rose-300 block">Problem z logowaniem:</span>
+                      <p className="leading-relaxed mt-0.5 text-rose-200">{authError}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearAuthError}
+                    className="text-rose-400 hover:text-white p-1"
+                    title="Zamknij powiadomienie"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="pt-1.5 border-t border-rose-500/20 text-[10px] text-slate-300 space-y-1">
+                  <p className="font-semibold text-amber-300">💡 Profil służbowy Androida (ikonka teczki 💼):</p>
+                  <p>
+                    Profil służbowy jest izolowany i chroniony przez politykę firmy. Często blokuje logowanie zewnętrznymi kontami Google (@gmail.com) lub blokuje wyskakujące okna. Aby zalogować się prywatnym kontem, otwórz aplikację w <strong>prywatnym profilu Chrome</strong> w telefonie.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {googleUser ? (
               <div className="space-y-2.5 pt-1">

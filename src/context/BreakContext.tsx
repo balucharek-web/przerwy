@@ -41,7 +41,7 @@ import {
   ensurePersistentStorage,
 } from '../utils/persistenceService';
 import { User } from 'firebase/auth';
-import { initAuth, googleSignIn, logout as authLogout, getAccessToken } from '../utils/googleAuth';
+import { initAuth, googleSignIn, logout as authLogout, getAccessToken, getAuthErrorDescription } from '../utils/googleAuth';
 import { saveBackupToGoogleDrive, loadBackupFromGoogleDrive } from '../utils/googleDriveSync';
 
 interface BreakContextType {
@@ -75,6 +75,8 @@ interface BreakContextType {
   googleUser: User | null;
   isGoogleSyncing: boolean;
   lastGoogleSyncTime: string | null;
+  authError: string | null;
+  clearAuthError: () => void;
   signInGoogle: () => Promise<boolean>;
   signOutGoogle: () => Promise<void>;
   manualGoogleSync: () => Promise<boolean>;
@@ -180,6 +182,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Google Account & Google Drive AppData Sync state
   const [googleUser, setGoogleUser] = useState<User | null>(null);
   const [isGoogleSyncing, setIsGoogleSyncing] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [lastGoogleSyncTime, setLastGoogleSyncTime] = useState<string | null>(() => {
     return localStorage.getItem('przerwapro_last_google_sync');
   });
@@ -383,7 +386,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const clearAuthError = () => {
+    setAuthError(null);
+  };
+
   const signInGoogle = async (): Promise<boolean> => {
+    setAuthError(null);
     try {
       setIsGoogleSyncing(true);
       const res = await googleSignIn();
@@ -420,8 +428,10 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return true;
       }
       return false;
-    } catch (err) {
+    } catch (err: any) {
       console.error('Google Sign-in failed:', err);
+      const desc = getAuthErrorDescription(err);
+      setAuthError(desc);
       return false;
     } finally {
       setIsGoogleSyncing(false);
@@ -431,6 +441,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const signOutGoogle = async () => {
     await authLogout();
     setGoogleUser(null);
+    setAuthError(null);
   };
 
   // Cross-tab synchronization and IndexedDB auto-recovery
@@ -1287,6 +1298,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         googleUser,
         isGoogleSyncing,
         lastGoogleSyncTime,
+        authError,
+        clearAuthError,
         signInGoogle,
         signOutGoogle,
         manualGoogleSync,
