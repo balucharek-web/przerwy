@@ -40,6 +40,9 @@ import {
   restoreFromIndexedDB,
   ensurePersistentStorage,
 } from '../utils/persistenceService';
+import { User } from 'firebase/auth';
+import { initAuth, googleSignIn, logout as authLogout, getAccessToken } from '../utils/googleAuth';
+import { saveBackupToGoogleDrive, loadBackupFromGoogleDrive } from '../utils/googleDriveSync';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -69,6 +72,12 @@ interface BreakContextType {
   dismissUndo: () => void;
   powerOffWarning: { breakId: string; elapsedMinutes: number; startTime: string } | null;
   resolvePowerOffBreak: (resolution: 'cap_allowance' | 'keep_running' | 'discard') => void;
+  googleUser: User | null;
+  isGoogleSyncing: boolean;
+  lastGoogleSyncTime: string | null;
+  signInGoogle: () => Promise<boolean>;
+  signOutGoogle: () => Promise<void>;
+  manualGoogleSync: () => Promise<boolean>;
 }
 
 import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
@@ -167,6 +176,13 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Running second counter for active break
   const [currentBreakSeconds, setCurrentBreakSeconds] = useState<number>(0);
+
+  // Google Account & Google Drive AppData Sync state
+  const [googleUser, setGoogleUser] = useState<User | null>(null);
+  const [isGoogleSyncing, setIsGoogleSyncing] = useState<boolean>(false);
+  const [lastGoogleSyncTime, setLastGoogleSyncTime] = useState<string | null>(() => {
+    return localStorage.getItem('przerwapro_last_google_sync');
+  });
 
   // Undo state for accidental Start / Stop clicks
   const [undoState, setUndoState] = useState<{
@@ -279,7 +295,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setVibrationIntensity(settings.vibrationIntensity || 'turbo');
   }, [settings.vibrationIntensity]);
 
-  // Save breaks with dual-layer persistence (LocalStorage + IndexedDB)
+  // Save breaks with dual-layer persistence (LocalStorage + IndexedDB + Google Drive)
   useEffect(() => {
     try {
       localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(breaks));
@@ -288,6 +304,134 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       backupToIndexedDB('breaks', breaks);
     }
   }, [breaks]);
+
+  // Automatic Google Auth listener & cloud recovery
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      async (user, token) => {
+        setGoogleUser(user);
+        console.log('✅ Zalogowano przez konto Google:', user.displayName || user.email);
+
+        // Auto-fill user name if still default
+        if (settings.googleChatUserName === 'Pracownik' && user.displayName) {
+          const firstName = user.displayName.split(' ')[0] || user.displayName;
+          updateSettings({ googleChatUserName: firstName });
+        }
+
+        // Try downloading cloud backup if local records are empty or user just signed in
+        try {
+          setIsGoogleSyncing(true);
+          const cloudData = await loadBackupFromGoogleDrive();
+          if (cloudData) {
+            console.log('☁️ Znaleziono kopię zapasową w chmurze Dysku Google z dnia:', cloudData.updatedAt);
+            if (breaks.length === 0 && cloudData.breaks && cloudData.breaks.length > 0) {
+              setBreaks(cloudData.breaks);
+              try {
+                localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(cloudData.breaks));
+              } catch {}
+            }
+            if (cloudData.settings) {
+              setSettings((prev) => {
+                const merged = { ...prev, ...cloudData.settings };
+                try {
+                  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+                } catch {}
+                return merged;
+              });
+            }
+            const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            setLastGoogleSyncTime(syncTime);
+            localStorage.setItem('przerwapro_last_google_sync', syncTime);
+          } else {
+            // First time: upload current local data as initial backup
+            await saveBackupToGoogleDrive(settings, breaks);
+            const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            setLastGoogleSyncTime(syncTime);
+            localStorage.setItem('przerwapro_last_google_sync', syncTime);
+          }
+        } catch (err) {
+          console.warn('Google Drive auto-sync error:', err);
+        } finally {
+          setIsGoogleSyncing(false);
+        }
+      },
+      () => {
+        setGoogleUser(null);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const manualGoogleSync = async (): Promise<boolean> => {
+    setIsGoogleSyncing(true);
+    try {
+      const success = await saveBackupToGoogleDrive(settings, breaks);
+      if (success) {
+        const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+        setLastGoogleSyncTime(syncTime);
+        localStorage.setItem('przerwapro_last_google_sync', syncTime);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    } finally {
+      setIsGoogleSyncing(false);
+    }
+  };
+
+  const signInGoogle = async (): Promise<boolean> => {
+    try {
+      setIsGoogleSyncing(true);
+      const res = await googleSignIn();
+      if (res) {
+        setGoogleUser(res.user);
+        if (settings.googleChatUserName === 'Pracownik' && res.user.displayName) {
+          const firstName = res.user.displayName.split(' ')[0] || res.user.displayName;
+          updateSettings({ googleChatUserName: firstName });
+        }
+        // Restore from Drive if available, else backup
+        const cloudData = await loadBackupFromGoogleDrive();
+        if (cloudData) {
+          if (cloudData.breaks && cloudData.breaks.length > 0) {
+            setBreaks(cloudData.breaks);
+            try {
+              localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(cloudData.breaks));
+            } catch {}
+          }
+          if (cloudData.settings) {
+            setSettings((prev) => {
+              const merged = { ...prev, ...cloudData.settings };
+              try {
+                localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(merged));
+              } catch {}
+              return merged;
+            });
+          }
+        } else {
+          await saveBackupToGoogleDrive(settings, breaks);
+        }
+        const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+        setLastGoogleSyncTime(syncTime);
+        localStorage.setItem('przerwapro_last_google_sync', syncTime);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Google Sign-in failed:', err);
+      return false;
+    } finally {
+      setIsGoogleSyncing(false);
+    }
+  };
+
+  const signOutGoogle = async () => {
+    await authLogout();
+    setGoogleUser(null);
+  };
 
   // Cross-tab synchronization and IndexedDB auto-recovery
   useEffect(() => {
@@ -781,6 +925,21 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
       }).then((log) => addWebhookLog(log));
     }
+
+    // Auto-save backup to Google Drive if signed in
+    if (googleUser) {
+      setTimeout(async () => {
+        try {
+          const allBreaks = [completed, ...breaks.filter((b) => b.id !== completed.id)];
+          const success = await saveBackupToGoogleDrive(settings, allBreaks);
+          if (success) {
+            const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            setLastGoogleSyncTime(syncTime);
+            localStorage.setItem('przerwapro_last_google_sync', syncTime);
+          }
+        } catch {}
+      }, 500);
+    }
   };
 
   const dismissUndo = () => {
@@ -1125,6 +1284,12 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         dismissUndo,
         powerOffWarning,
         resolvePowerOffBreak,
+        googleUser,
+        isGoogleSyncing,
+        lastGoogleSyncTime,
+        signInGoogle,
+        signOutGoogle,
+        manualGoogleSync,
       }}
     >
       {children}

@@ -9,3 +9,4 @@ coverage/
 !.env.example
 .vapid.json
 bun.lock
+.aistudio/

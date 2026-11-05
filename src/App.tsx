@@ -15,7 +15,8 @@ import {
   X,
   Smartphone,
   Download,
-  ChevronRight
+  ChevronRight,
+  Cloud,
 } from 'lucide-react';
 import { BreakProvider, useBreaks } from './context/BreakContext';
 import { MainBreakTracker } from './components/MainBreakTracker';
@@ -30,7 +31,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
 
 function AppContent() {
-  const { activeBreak, undoState, undoLastAction, dismissUndo } = useBreaks();
+  const { activeBreak, undoState, undoLastAction, dismissUndo, googleUser, isGoogleSyncing, signInGoogle } = useBreaks();
 
   const [activeTab, setActiveTab] = useState<'tracker' | 'calendar'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -142,6 +143,28 @@ function AppContent() {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
+                {/* Cloud Drive Sync indicator / button */}
+                {googleUser ? (
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-sm"
+                    title={`Zalogowano: ${googleUser.displayName || googleUser.email} • Kopia na Dysku aktywna`}
+                  >
+                    <Cloud className={`w-3.5 h-3.5 text-blue-400 ${isGoogleSyncing ? 'animate-pulse' : ''}`} />
+                    <span className="hidden sm:inline">Dysk</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={signInGoogle}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                    title="Połącz z Dyskiem Google, aby chronić dane"
+                  >
+                    <Cloud className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="hidden sm:inline">Chroń dane</span>
+                  </button>
+                )}
+
                 {/* 1. Share & QR */}
                 <button
                   onClick={() => setIsShareOpen(true)}
