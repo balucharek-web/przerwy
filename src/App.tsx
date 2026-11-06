@@ -17,6 +17,7 @@ import {
   Download,
   ChevronRight,
   Cloud,
+  CalendarPlus,
 } from 'lucide-react';
 import { BreakProvider, useBreaks } from './context/BreakContext';
 import { MainBreakTracker } from './components/MainBreakTracker';
@@ -31,7 +32,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { formatTimeOnly } from './utils/dateUtils';
 
 function AppContent() {
-  const { activeBreak, undoState, undoLastAction, dismissUndo, googleUser, isGoogleSyncing, signInGoogle, authError } = useBreaks();
+  const { activeBreak, undoState, undoLastAction, dismissUndo, googleUser, isGoogleSyncing, signInGoogle, authError, addBreakToCalendar } = useBreaks();
 
   const [activeTab, setActiveTab] = useState<'tracker' | 'calendar'>('tracker');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -263,6 +264,17 @@ function AppContent() {
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900/95 border border-amber-500/50 shadow-2xl backdrop-blur-md text-white text-xs animate-in slide-in-from-bottom-4 shadow-amber-500/20">
               <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
               <span className="font-semibold text-slate-200">{undoState.label}</span>
+              {undoState.type === 'stop' && undoState.payload?.completedBreak && (
+                <button
+                  type="button"
+                  onClick={() => addBreakToCalendar(undoState.payload.completedBreak)}
+                  className="px-2.5 py-1.5 rounded-xl bg-blue-500/25 hover:bg-blue-500/40 text-blue-200 border border-blue-500/40 font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                  title="Dodaj to wydarzenie do Kalendarza w telefonie"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5 text-blue-300" />
+                  <span>Kalendarz</span>
+                </button>
+              )}
               <button
                 onClick={undoLastAction}
                 className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"

@@ -43,6 +43,7 @@ import {
 import { User } from 'firebase/auth';
 import { initAuth, googleSignIn, logout as authLogout, getAccessToken, getAuthErrorDescription } from '../utils/googleAuth';
 import { saveBackupToGoogleDrive, loadBackupFromGoogleDrive } from '../utils/googleDriveSync';
+import { addBreakToAndroidCalendar, exportBreaksToICSFile } from '../utils/calendarService';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -67,7 +68,7 @@ interface BreakContextType {
   importDataJSON: (jsonStr: string) => boolean;
   fastForwardSeconds: (seconds: number) => void;
   jumpToAlarmTest: (mode: 'warning' | 'limit') => void;
-  undoState: { type: 'start' | 'stop'; label: string; timestamp: number } | null;
+  undoState: { type: 'start' | 'stop'; label: string; timestamp: number; payload?: any } | null;
   undoLastAction: () => void;
   dismissUndo: () => void;
   powerOffWarning: { breakId: string; elapsedMinutes: number; startTime: string } | null;
@@ -80,6 +81,8 @@ interface BreakContextType {
   signInGoogle: () => Promise<boolean>;
   signOutGoogle: () => Promise<void>;
   manualGoogleSync: () => Promise<boolean>;
+  addBreakToCalendar: (b: BreakRecord) => void;
+  exportDayToICS: (dayKey?: string) => void;
 }
 
 import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
@@ -951,6 +954,27 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } catch {}
       }, 500);
     }
+
+    // Auto-add to Android Calendar if enabled in settings
+    if (settings.autoAddToCalendar) {
+      setTimeout(() => {
+        try {
+          addBreakToAndroidCalendar(completed, settings.googleChatUserName);
+        } catch (err) {
+          console.warn('Auto calendar export error:', err);
+        }
+      }, 400);
+    }
+  };
+
+  const addBreakToCalendar = (b: BreakRecord) => {
+    addBreakToAndroidCalendar(b, settings.googleChatUserName);
+  };
+
+  const exportDayToICS = (dayKey?: string) => {
+    const targetKey = dayKey || todaySummary.dayKey;
+    const dayBreaks = breaks.filter((b) => b.dayKey === targetKey);
+    exportBreaksToICSFile(dayBreaks, `przerwy_${targetKey}.ics`, settings.googleChatUserName);
   };
 
   const dismissUndo = () => {
@@ -1303,6 +1327,8 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signInGoogle,
         signOutGoogle,
         manualGoogleSync,
+        addBreakToCalendar,
+        exportDayToICS,
       }}
     >
       {children}

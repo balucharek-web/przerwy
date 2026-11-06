@@ -20,7 +20,8 @@ import {
   Unlock,
   Smartphone,
   ShieldCheck,
-  Info
+  Info,
+  CalendarPlus,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
@@ -54,6 +55,7 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
     updateSettings,
     powerOffWarning,
     resolvePowerOffBreak,
+    addBreakToCalendar,
   } = useBreaks();
 
   const [showManualModal, setShowManualModal] = useState(false);
@@ -520,10 +522,18 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <div className="font-mono font-bold text-slate-200 text-sm">
                     {formatDurationHuman(b.durationSeconds)}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => addBreakToCalendar(b)}
+                    className="opacity-70 group-hover:opacity-100 text-slate-400 hover:text-amber-400 p-1.5 rounded-lg hover:bg-slate-700/50 transition cursor-pointer"
+                    title="Dodaj tę przerwę do Kalendarza w telefonie"
+                  >
+                    <CalendarPlus className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => {
                       if (confirm('Czy na pewno chcesz usunąć ten wpis przerwy?')) {

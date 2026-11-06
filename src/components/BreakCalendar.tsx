@@ -10,14 +10,15 @@ import {
   Plus, 
   Coffee,
   X,
-  FileSpreadsheet
+  FileSpreadsheet,
+  CalendarPlus,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, getDayKey } from '../utils/dateUtils';
 import { BreakRecord } from '../types';
 
 export const BreakCalendar: React.FC = () => {
-  const { breaks, settings, deleteBreak, addManualBreak } = useBreaks();
+  const { breaks, settings, deleteBreak, addManualBreak, addBreakToCalendar, exportDayToICS } = useBreaks();
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDayKey, setSelectedDayKey] = useState<string>(() => {
@@ -436,6 +437,21 @@ export const BreakCalendar: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-2">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-semibold text-slate-400">
+                Przerwy w tym dniu ({selectedDayBreaks.length}):
+              </span>
+              <button
+                type="button"
+                onClick={() => exportDayToICS(selectedDayKey)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 text-[11px] font-semibold transition cursor-pointer"
+                title="Eksportuj wszystkie przerwy z tego dnia do pliku .ics dla Kalendarza"
+              >
+                <CalendarPlus className="w-3.5 h-3.5" />
+                <span>Zapisz dzień w Kalendarzu (.ics)</span>
+              </button>
+            </div>
+
             {selectedDayBreaks.map((b, index) => (
               <div
                 key={b.id}
@@ -453,17 +469,25 @@ export const BreakCalendar: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-amber-400">
                     {formatDurationHuman(b.durationSeconds)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => addBreakToCalendar(b)}
+                    className="text-slate-400 hover:text-amber-400 p-1.5 rounded-lg hover:bg-slate-700/50 transition cursor-pointer"
+                    title="Dodaj tę przerwę do Kalendarza w telefonie"
+                  >
+                    <CalendarPlus className="w-3.5 h-3.5" />
+                  </button>
                   <button
                     onClick={() => {
                       if (confirm('Usunąć ten wpis?')) {
                         deleteBreak(b.id);
                       }
                     }}
-                    className="text-slate-500 hover:text-rose-400 p-1.5 transition"
+                    className="text-slate-500 hover:text-rose-400 p-1.5 transition cursor-pointer"
                     title="Usuń wpis"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
