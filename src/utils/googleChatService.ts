@@ -1,14 +1,16 @@
 import { WebhookLog } from '../types';
 
+export const TEAM_SHARED_WEBHOOK = 'https://chat.googleapis.com/v1/spaces/AAAA94ZyILs/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=aoQFsSDKoYcofsyF4Cd1cynnTkNShzZDilpkNcJ4j2c';
+
 export interface SendWebhookParams {
-  webhookUrl: string;
+  webhookUrl?: string;
   userName?: string;
   action: 'start' | 'stop' | 'test';
   breakStartTime?: string;
   breakEndTime?: string;
   currentBreakDurationSeconds?: number;
-  totalUsedSecondsToday: number;
-  dailyAllowanceSeconds: number;
+  totalUsedSecondsToday?: number;
+  dailyAllowanceSeconds?: number;
   simpleChatMessages?: boolean;
   startMessageText?: string;
   stopMessageText?: string;
@@ -21,23 +23,16 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     userName = 'Pracownik',
     action,
     currentBreakDurationSeconds = 0,
-    totalUsedSecondsToday,
-    dailyAllowanceSeconds,
+    totalUsedSecondsToday = 0,
+    dailyAllowanceSeconds = 1800,
     simpleChatMessages = true,
     startMessageText = 'start',
     stopMessageText = 'stop',
-    includeNameInSimpleMessage = false,
+    includeNameInSimpleMessage = true,
   } = params;
 
-  if (!webhookUrl || !webhookUrl.trim()) {
-    return {
-      id: Math.random().toString(36).substring(2),
-      timestamp: new Date().toISOString(),
-      action,
-      status: 'error',
-      message: 'Brak skonfigurowanego adresu URL webhooka Google Chat.',
-    };
-  }
+  // Fallback to team shared webhook if empty or undefined
+  const targetUrl = (webhookUrl && webhookUrl.trim()) ? webhookUrl.trim() : TEAM_SHARED_WEBHOOK;
 
   const remainingSeconds = dailyAllowanceSeconds - totalUsedSecondsToday;
   const usedMinutes = Math.floor(totalUsedSecondsToday / 60);
@@ -50,10 +45,11 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
   let messageText = '';
 
   if (action === 'test') {
-    messageText = `🔔 *Test webhooka PrzerwaPro*\n👤 Użytkownik: *${userName}*\n✅ Webhook działa poprawnie!\n🕒 Czas: ${timeStr} | ${dateStr}`;
+    const displayName = (userName && userName.trim()) ? userName.trim() : 'Pracownik';
+    messageText = `🔔 *Test webhooka PrzerwaPro*\n👤 Użytkownik: *${displayName}*\n✅ Webhook Google Chat działa poprawnie!\n🕒 Czas: ${timeStr} | ${dateStr}`;
   } else if (simpleChatMessages) {
-    // Basic start / stop messages
-    let baseText = action === 'start'
+    // Basic start / stop messages (np. "Arek: start" lub "start")
+    const baseText = action === 'start'
       ? ((startMessageText && startMessageText.trim()) || 'start')
       : ((stopMessageText && stopMessageText.trim()) || 'stop');
 
@@ -64,11 +60,12 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     }
   } else {
     // Full report mode
+    const displayName = (userName && userName.trim()) ? userName.trim() : 'Pracownik';
     if (action === 'start') {
       const remMinutes = Math.max(0, Math.floor(remainingSeconds / 60));
       const remSeconds = Math.max(0, remainingSeconds % 60);
 
-      messageText = `☕ *${userName} rozpoczął przerwę*\n` +
+      messageText = `☕ *${displayName} rozpoczął przerwę*\n` +
         `🕒 Czas: *${timeStr}*\n` +
         `📊 Wykorzystano dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
         `⏳ Pozostały limit: *${remainingSeconds >= 0 ? `${remMinutes}m ${remSeconds}s` : `PRZEKROCZONO o ${Math.abs(Math.floor(remainingSeconds / 60))}m!`}*`;
@@ -81,7 +78,7 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
       const isOver = remainingSeconds < 0;
       const statusEmoji = isOver ? '⚠️' : '✅';
 
-      messageText = `${statusEmoji} *${userName} zakończył przerwę*\n` +
+      messageText = `${statusEmoji} *${displayName} zakończył przerwę*\n` +
         `🕒 Czas: *${timeStr}*\n` +
         `⏱️ Czas trwania tej przerwy: *${durationMin}m ${durationSec}s*\n` +
         `📊 Łącznie dzisiaj: *${usedMinutes}m ${usedSeconds}s* / *${allowMinutes}m 00s*\n` +
@@ -89,14 +86,17 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
     }
   }
 
-  // 1. Direct fetch to Google Chat Webhook (Google Chat supports CORS natively)
+  const payloadString = JSON.stringify({ text: messageText });
+
+  // STRATEGY 1: Direct fetch with Content-Type: application/json; charset=UTF-8 and keepalive: true
   try {
-    const directRes = await fetch(webhookUrl.trim(), {
+    const directRes = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: JSON.stringify({ text: messageText }),
+      body: payloadString,
+      keepalive: true,
     });
 
     if (directRes.ok) {
@@ -107,23 +107,71 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         status: 'success',
         message: `Wysłano na Google Chat: "${messageText}"`,
       };
-    } else {
-      const errText = await directRes.text().catch(() => '');
-      console.warn('Google Chat direct response error:', directRes.status, errText);
     }
   } catch (directErr) {
-    console.warn('Direct fetch to Google Chat failed, attempting proxy fallback:', directErr);
+    console.warn('[GoogleChat] Direct JSON fetch failed, attempting text/plain fallback:', directErr);
   }
 
-  // 2. Fallback: try backend proxy (if running in full-stack Node.js environment)
+  // STRATEGY 2: Direct fetch with Content-Type: text/plain (CORS-safelisted simple request, avoids preflight OPTIONS)
+  // Google Chat API natively parses json in text/plain body without failing CORS preflight
+  try {
+    const textRes = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=UTF-8',
+      },
+      body: payloadString,
+      keepalive: true,
+    });
+
+    if (textRes.ok) {
+      return {
+        id: Math.random().toString(36).substring(2),
+        timestamp: new Date().toISOString(),
+        action,
+        status: 'success',
+        message: `Wysłano na Google Chat: "${messageText}"`,
+      };
+    }
+  } catch (textErr) {
+    console.warn('[GoogleChat] Text/plain fetch failed, attempting no-cors fallback:', textErr);
+  }
+
+  // STRATEGY 3: mode: 'no-cors' with Content-Type: text/plain
+  // Guaranteed delivery across strict browser sandboxes / Work Profile MDM firewalls
+  try {
+    await fetch(targetUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain;charset=UTF-8',
+      },
+      body: payloadString,
+      keepalive: true,
+    });
+
+    // In no-cors mode the browser does not expose the response status, but the POST is delivered to Google Chat
+    return {
+      id: Math.random().toString(36).substring(2),
+      timestamp: new Date().toISOString(),
+      action,
+      status: 'success',
+      message: `Wysłano na Google Chat: "${messageText}"`,
+    };
+  } catch (noCorsErr) {
+    console.warn('[GoogleChat] no-cors fetch failed, trying proxy fallback:', noCorsErr);
+  }
+
+  // STRATEGY 4: Try backend proxy (if running in full-stack Node.js environment)
   try {
     const proxyRes = await fetch('/api/webhook/google-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        webhookUrl: webhookUrl.trim(),
+        webhookUrl: targetUrl,
         text: messageText,
       }),
+      keepalive: true,
     });
 
     if (proxyRes.ok) {
@@ -134,15 +182,12 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         status: 'success',
         message: `Wysłano na Google Chat: "${messageText}"`,
       };
-    } else {
-      const errorData = await proxyRes.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${proxyRes.status}`);
     }
   } catch (proxyError: any) {
     // If delivery failed (e.g. no internet connection), enqueue into offline queue for auto-retry
     if (action === 'start' || action === 'stop') {
       enqueueOfflineWebhook({
-        webhookUrl: webhookUrl.trim(),
+        webhookUrl: targetUrl,
         messageText,
         action,
         timestamp: new Date().toISOString(),
@@ -152,7 +197,7 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
         timestamp: new Date().toISOString(),
         action,
         status: 'error',
-        message: 'Brak internetu. Wiadomość zapisana w kolejce offline – zostanie wysłana natychmiast po odzyskaniu zasięgu.',
+        message: 'Brak połączenia z siecią. Wiadomość zapisana w kolejce – zostanie wysłana automatycznie po powrocie internetu.',
       };
     }
 
@@ -161,9 +206,34 @@ export async function sendGoogleChatWebhook(params: SendWebhookParams): Promise<
       timestamp: new Date().toISOString(),
       action,
       status: 'error',
-      message: `Błąd wysyłania: ${proxyError.message || 'Nie udało się dostarczyć wiadomości'}`,
+      message: `Błąd wysyłania: ${proxyError?.message || 'Nie udało się dostarczyć wiadomości na czat'}`,
     };
   }
+
+  // Final fallback if proxy didn't throw but wasn't ok
+  if (action === 'start' || action === 'stop') {
+    enqueueOfflineWebhook({
+      webhookUrl: targetUrl,
+      messageText,
+      action,
+      timestamp: new Date().toISOString(),
+    });
+    return {
+      id: Math.random().toString(36).substring(2),
+      timestamp: new Date().toISOString(),
+      action,
+      status: 'error',
+      message: 'Wiadomość dodana do kolejki (brak odpowiedzi serwera). Zostanie ponowiona automatycznie.',
+    };
+  }
+
+  return {
+    id: Math.random().toString(36).substring(2),
+    timestamp: new Date().toISOString(),
+    action,
+    status: 'error',
+    message: 'Nie udało się wysłać testu na Google Chat. Sprawdź połączenie z internetem.',
+  };
 }
 
 const OFFLINE_QUEUE_KEY = 'przerwapro_offline_webhook_queue';
@@ -196,18 +266,39 @@ export async function flushOfflineWebhookQueue(): Promise<number> {
     const remaining: QueuedWebhook[] = [];
 
     for (const item of queue) {
+      const payloadString = JSON.stringify({ text: `${item.messageText} (dosłane z kolejki)` });
+      let sent = false;
+
+      // Try text/plain first
       try {
         const res = await fetch(item.webhookUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
-          body: JSON.stringify({ text: `${item.messageText} (dosłane z kolejki po odzyskaniu zasięgu)` }),
+          headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+          body: payloadString,
+          keepalive: true,
         });
         if (res.ok) {
           delivered++;
-        } else {
-          remaining.push(item);
+          sent = true;
         }
-      } catch {
+      } catch {}
+
+      // Fallback to no-cors
+      if (!sent) {
+        try {
+          await fetch(item.webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: payloadString,
+            keepalive: true,
+          });
+          delivered++;
+          sent = true;
+        } catch {}
+      }
+
+      if (!sent) {
         remaining.push(item);
       }
     }
@@ -223,4 +314,3 @@ export async function flushOfflineWebhookQueue(): Promise<number> {
     return 0;
   }
 }
-

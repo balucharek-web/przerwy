@@ -68,7 +68,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [simpleChatMessages, setSimpleChatMessages] = useState(settings.simpleChatMessages ?? true);
   const [startMessageText, setStartMessageText] = useState(settings.startMessageText || 'start');
   const [stopMessageText, setStopMessageText] = useState(settings.stopMessageText || 'stop');
-  const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage ?? false);
+  const [includeNameInSimpleMessage, setIncludeNameInSimpleMessage] = useState(settings.includeNameInSimpleMessage !== false);
   const [notificationBarControls, setNotificationBarControls] = useState(settings.notificationBarControlsEnabled ?? true);
   const [notificationBarOnlyDuringBreak, setNotificationBarOnlyDuringBreak] = useState(settings.notificationBarOnlyDuringBreak ?? true);
   const [notificationBarTitleStyle, setNotificationBarTitleStyle] = useState<'return_only' | 'countdown_and_return' | 'countdown_only' | 'minutes_and_return'>(settings.notificationBarTitleStyle ?? 'return_only');
@@ -85,6 +85,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [testLockCountdown, setTestLockCountdown] = useState<number | null>(null);
   const [vibrationTestState, setVibrationTestState] = useState<'idle' | 'vibrating' | 'sys-vibrating' | 'unsupported'>('idle');
   const [showVibrationGuide, setShowVibrationGuide] = useState(false);
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [testWebhookResult, setTestWebhookResult] = useState<{ status: 'success' | 'error'; message: string } | null>(null);
 
   const handleTestSystemVibration = async () => {
     setVibrationTestState('sys-vibrating');
@@ -96,6 +98,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       requireInteraction: false,
     });
     setTimeout(() => setVibrationTestState('idle'), 2500);
+  };
+
+  const handleTestGoogleChat = async () => {
+    setIsTestingWebhook(true);
+    setTestWebhookResult(null);
+    try {
+      const log = await testWebhook();
+      setTestWebhookResult({
+        status: log.status,
+        message: log.message,
+      });
+    } catch (err: any) {
+      setTestWebhookResult({
+        status: 'error',
+        message: err?.message || 'Błąd wysyłania testu na czat',
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
   };
 
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -999,6 +1020,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <p className="text-[11px] text-slate-400 pl-6">
                   W trybie pełnym aplikacja wysyła sformatowaną wiadomość ze szczegółami, godziną i wyliczonym limitem.
                 </p>
+              )}
+            </div>
+
+            {/* Status połączenia z webhookiem i przycisk testowy */}
+            <div className="space-y-2 pt-1">
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] text-slate-300 flex items-center justify-between">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+                  <span className="truncate font-medium text-slate-200">
+                    Wspólny webhook Leroy Merlin (pokój przerw)
+                  </span>
+                </div>
+                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono shrink-0">
+                  Aktywny ✓
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTestGoogleChat}
+                disabled={isTestingWebhook}
+                className="w-full py-2.5 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-50 active:scale-[0.98]"
+              >
+                <Send className={`w-3.5 h-3.5 text-amber-400 ${isTestingWebhook ? 'animate-spin' : ''}`} />
+                <span>{isTestingWebhook ? 'Wysyłanie testu na czat...' : '💬 Przetestuj wysłanie wiadomości na Google Chat'}</span>
+              </button>
+
+              {testWebhookResult && (
+                <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2.5 animate-in fade-in ${
+                  testWebhookResult.status === 'success' 
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200' 
+                    : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
+                }`}>
+                  {testWebhookResult.status === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="font-bold">
+                      {testWebhookResult.status === 'success' ? 'Sukces! Wiadomość wysłana na Google Chat' : 'Błąd dostarczenia'}
+                    </p>
+                    <p className="text-[11px] opacity-90 leading-relaxed">{testWebhookResult.message}</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

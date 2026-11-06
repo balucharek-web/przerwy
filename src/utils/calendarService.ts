@@ -106,11 +106,20 @@ export function addBreakToAndroidCalendar(
 
   // Open calendar render URL (captured by Android Calendar app on phones)
   const url = buildGoogleCalendarUrl(event);
-  const win = window.open(url, '_blank', 'noopener,noreferrer');
-  
-  // Fallback if popup blocker intercepted
-  if (!win || win.closed || typeof win.closed === 'undefined') {
-    window.location.href = url;
+  try {
+    const win = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      // Safe fallback that does NOT hijack or reload the current PrzerwaPro tab
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch (err) {
+    console.warn('Calendar open error:', err);
   }
 }
 

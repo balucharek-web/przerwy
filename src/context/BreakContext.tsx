@@ -83,6 +83,7 @@ interface BreakContextType {
   manualGoogleSync: () => Promise<boolean>;
   addBreakToCalendar: (b: BreakRecord) => void;
   exportDayToICS: (dayKey?: string) => void;
+  retryLastWebhook: () => Promise<WebhookLog>;
 }
 
 import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
@@ -846,20 +847,19 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       allowanceMinutes: settings.dailyAllowanceMinutes,
     });
 
-    if (settings.googleChatWebhookUrl) {
-      setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
-      sendGoogleChatWebhook({
-        webhookUrl: settings.googleChatWebhookUrl,
-        userName: settings.googleChatUserName,
-        action: 'start',
-        totalUsedSecondsToday: todayCompletedSeconds,
-        dailyAllowanceSeconds: allowanceSeconds,
-        simpleChatMessages: settings.simpleChatMessages,
-        startMessageText: settings.startMessageText,
-        stopMessageText: settings.stopMessageText,
-        includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
-      }).then((log) => addWebhookLog(log));
-    }
+    const webhookToUse = (settings.googleChatWebhookUrl && settings.googleChatWebhookUrl.trim()) || TEAM_SHARED_WEBHOOK;
+    setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
+    sendGoogleChatWebhook({
+      webhookUrl: webhookToUse,
+      userName: settings.googleChatUserName || 'Pracownik',
+      action: 'start',
+      totalUsedSecondsToday: todayCompletedSeconds,
+      dailyAllowanceSeconds: allowanceSeconds,
+      simpleChatMessages: settings.simpleChatMessages,
+      startMessageText: settings.startMessageText,
+      stopMessageText: settings.stopMessageText,
+      includeNameInSimpleMessage: settings.includeNameInSimpleMessage !== false,
+    }).then((log) => addWebhookLog(log));
   };
 
   const stopBreak = async (note?: string, subtractMinutes?: number) => {
@@ -924,21 +924,20 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const newTotalToday = todayCompletedSeconds + duration;
 
-    if (settings.googleChatWebhookUrl) {
-      setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
-      sendGoogleChatWebhook({
-        webhookUrl: settings.googleChatWebhookUrl,
-        userName: settings.googleChatUserName,
-        action: 'stop',
-        currentBreakDurationSeconds: duration,
-        totalUsedSecondsToday: newTotalToday,
-        dailyAllowanceSeconds: allowanceSeconds,
-        simpleChatMessages: settings.simpleChatMessages,
-        startMessageText: settings.startMessageText,
-        stopMessageText: settings.stopMessageText,
-        includeNameInSimpleMessage: settings.includeNameInSimpleMessage,
-      }).then((log) => addWebhookLog(log));
-    }
+    const webhookToUse = (settings.googleChatWebhookUrl && settings.googleChatWebhookUrl.trim()) || TEAM_SHARED_WEBHOOK;
+    setLastWebhookStatus({ status: 'sending', message: 'Wysyłanie na Google Chat...' });
+    sendGoogleChatWebhook({
+      webhookUrl: webhookToUse,
+      userName: settings.googleChatUserName || 'Pracownik',
+      action: 'stop',
+      currentBreakDurationSeconds: duration,
+      totalUsedSecondsToday: newTotalToday,
+      dailyAllowanceSeconds: allowanceSeconds,
+      simpleChatMessages: settings.simpleChatMessages,
+      startMessageText: settings.startMessageText,
+      stopMessageText: settings.stopMessageText,
+      includeNameInSimpleMessage: settings.includeNameInSimpleMessage !== false,
+    }).then((log) => addWebhookLog(log));
 
     // Auto-save backup to Google Drive if signed in
     if (googleUser) {
@@ -1045,13 +1044,39 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const testWebhook = async () => {
-    setLastWebhookStatus({ status: 'sending', message: 'Testowanie połączenia...' });
+    const webhookToUse = (settings.googleChatWebhookUrl && settings.googleChatWebhookUrl.trim()) || TEAM_SHARED_WEBHOOK;
+    setLastWebhookStatus({ status: 'sending', message: 'Testowanie połączenia z Google Chat...' });
     const log = await sendGoogleChatWebhook({
-      webhookUrl: settings.googleChatWebhookUrl,
-      userName: settings.googleChatUserName,
+      webhookUrl: webhookToUse,
+      userName: settings.googleChatUserName || 'Pracownik',
       action: 'test',
       totalUsedSecondsToday,
       dailyAllowanceSeconds: allowanceSeconds,
+      simpleChatMessages: settings.simpleChatMessages,
+      startMessageText: settings.startMessageText,
+      stopMessageText: settings.stopMessageText,
+      includeNameInSimpleMessage: settings.includeNameInSimpleMessage !== false,
+    });
+    addWebhookLog(log);
+    return log;
+  };
+
+  const retryLastWebhook = async (): Promise<WebhookLog> => {
+    const isCurrentlyActive = !!activeBreak;
+    const action = isCurrentlyActive ? 'start' : 'stop';
+    const webhookToUse = (settings.googleChatWebhookUrl && settings.googleChatWebhookUrl.trim()) || TEAM_SHARED_WEBHOOK;
+    setLastWebhookStatus({ status: 'sending', message: 'Ponawianie wysyłania na Google Chat...' });
+    const log = await sendGoogleChatWebhook({
+      webhookUrl: webhookToUse,
+      userName: settings.googleChatUserName || 'Pracownik',
+      action,
+      totalUsedSecondsToday,
+      dailyAllowanceSeconds: allowanceSeconds,
+      currentBreakDurationSeconds: currentBreakSeconds,
+      simpleChatMessages: settings.simpleChatMessages,
+      startMessageText: settings.startMessageText,
+      stopMessageText: settings.stopMessageText,
+      includeNameInSimpleMessage: settings.includeNameInSimpleMessage !== false,
     });
     addWebhookLog(log);
     return log;
@@ -1329,6 +1354,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         manualGoogleSync,
         addBreakToCalendar,
         exportDayToICS,
+        retryLastWebhook,
       }}
     >
       {children}

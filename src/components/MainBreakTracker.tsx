@@ -22,14 +22,13 @@ import {
   ShieldCheck,
   Info,
   CalendarPlus,
+  Send,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, formatShortTime } from '../utils/dateUtils';
 import { requestNotificationPermission } from '../utils/notificationControl';
 import { initPermanentPocketProtection, subscribePocketState } from '../utils/pocketService';
 import { triggerButtonHaptic } from '../utils/vibrationService';
-
-
 
 interface MainBreakTrackerProps {
   onOpenCalendar: () => void;
@@ -56,6 +55,8 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
     powerOffWarning,
     resolvePowerOffBreak,
     addBreakToCalendar,
+    lastWebhookStatus,
+    retryLastWebhook,
   } = useBreaks();
 
   const [showManualModal, setShowManualModal] = useState(false);
@@ -412,6 +413,73 @@ export const MainBreakTracker: React.FC<MainBreakTrackerProps> = ({
             </div>
           )}
 
+        </div>
+
+        {/* Google Chat Realtime Status & User Signature */}
+        <div className="w-full mt-3 space-y-2">
+          {/* Status webhooka na żywo */}
+          {lastWebhookStatus.status === 'sending' && (
+            <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-xs animate-pulse shadow-sm">
+              <Send className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+              <span className="font-medium">Wysyłanie powiadomienia na Google Chat...</span>
+            </div>
+          )}
+
+          {lastWebhookStatus.status === 'success' && (
+            <div className="flex items-center justify-between py-1.5 px-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs animate-in fade-in shadow-sm">
+              <div className="flex items-center gap-2 truncate">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span className="truncate">{lastWebhookStatus.message}</span>
+              </div>
+              <span className="text-[10px] text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono shrink-0 ml-2">Chat ✓</span>
+            </div>
+          )}
+
+          {lastWebhookStatus.status === 'error' && (
+            <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs animate-in fade-in shadow-sm">
+              <div className="flex items-center gap-2 truncate">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="truncate">
+                  <span className="font-bold block text-rose-300">Wiadomość na czat nie dotarła:</span>
+                  <span className="text-[11px] opacity-90 truncate block">{lastWebhookStatus.message}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => retryLastWebhook()}
+                className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shrink-0 ml-2 cursor-pointer shadow active:scale-95 flex items-center gap-1"
+                title="Spróbuj wysłać ponownie wiadomość na Google Chat"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Wyślij ponownie</span>
+              </button>
+            </div>
+          )}
+
+          {/* Szybka informacja o podpisie na czacie */}
+          {(!settings.googleChatUserName || settings.googleChatUserName.trim() === 'Pracownik') ? (
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs transition cursor-pointer active:scale-[0.99]"
+              title="Kliknij, aby zmienić podpis na czacie na swoje imię"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+              <span>Podpis na czacie: <strong>„Pracownik”</strong> &bull; <span className="underline font-bold">Ustaw swoje imię (np. Arek)</span></span>
+            </button>
+          ) : (
+            <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
+              <Send className="w-3 h-3 text-slate-500" />
+              <span>Wiadomości na czacie: <strong className="text-slate-300 font-semibold">{settings.googleChatUserName}</strong></span>
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="text-amber-400/80 hover:text-amber-300 ml-1 underline cursor-pointer"
+              >
+                zmień
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
