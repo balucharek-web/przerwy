@@ -85,12 +85,26 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    let data = {};
     const contents = e.postData ? e.postData.contents : '';
-    if (!contents) {
-      return jsonResponse({ success: false, message: 'Brak danych w żądaniu POST' });
+    if (contents) {
+      try {
+        data = JSON.parse(contents);
+      } catch (err) {
+        // Fallback for urlencoded
+      }
     }
 
-    const data = JSON.parse(contents);
+    // Support standard HTML form submission (allows browser to pass ADEO SSO credentials via hidden iframe!)
+    if (!data.action && e.parameter) {
+      data = e.parameter;
+      if (typeof data.break === 'string') {
+        try {
+          data.break = JSON.parse(data.break);
+        } catch (err) {}
+      }
+    }
+
     const action = data.action || 'record_break';
 
     if (action === 'record_break') {
@@ -111,10 +125,21 @@ function doPost(e) {
       // 2. Zapis do ładnej wizualnej zakładki z miesiącem i kolumną dla pracownika
       recordIntoVisualMonthlySheet(ss, userName, startTime, endTime, durationSeconds, note);
 
-      return jsonResponse({
+      const respObj = {
         success: true,
-        message: 'Zapisano przerwę dla: ' + userName + ' w Arkuszu Google!'
-      });
+        message: 'Zapisano przerwę dla: ' + userName + ' w Arkuszu Google (ADEO)!'
+      };
+
+      // Jeśli wywołanie przyszło z ukrytego formularza w ramce iframe, zwróć HTML z postMessage
+      if (data.format === 'html' || (e.parameter && e.parameter.format === 'html')) {
+        return HtmlService.createHtmlOutput(
+          '<!DOCTYPE html><html><body><script>' +
+          'window.parent.postMessage({ type: "PRZERWAPRO_SHEET_SAVED", success: true, message: "' + respObj.message + '" }, "*");' +
+          '</script><h3>' + respObj.message + '</h3></body></html>'
+        );
+      }
+
+      return jsonResponse(respObj);
     }
 
     return jsonResponse({ success: false, message: 'Nieznana akcja POST: ' + action });

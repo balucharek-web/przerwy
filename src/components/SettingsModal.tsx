@@ -580,6 +580,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                       {testSheetsResult.success ? 'Połączenie z Arkuszem działa!' : 'Błąd połączenia'}
                     </p>
                     <p className="text-[11px] opacity-90 leading-relaxed whitespace-pre-line">{testSheetsResult.message}</p>
+                    {testSheetsResult.message?.includes('ADEO') && googleSheetsUrl && (
+                      <div className="pt-2">
+                        <a
+                          href={`${googleSheetsUrl.trim().replace(/\/+$/, '')}${googleSheetsUrl.includes('?') ? '&' : '?'}action=ping`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-[11px] font-bold transition"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <span>Otwórz skrypt w nowej karcie (autoryzacja sesji ADEO)</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
