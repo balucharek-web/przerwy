@@ -50,7 +50,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
   // Dane do zakodowania w kodzie QR
   const qrData = qrMode === 'webhook_only'
     ? currentWebhook
-    : `${GITHUB_PAGES_BASE_URL}?webhook=${encodeURIComponent(currentWebhook)}`;
+    : `${GITHUB_PAGES_BASE_URL}?webhook=${encodeURIComponent(currentWebhook)}${settings.googleSheetsUrl ? `&sheets=${encodeURIComponent(settings.googleSheetsUrl)}` : ''}`;
 
   // Link do generatora QR
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}&color=f59e0b&bgcolor=0f172a&margin=2`;
@@ -109,28 +109,43 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, onClose }) => {
           (decodedText) => {
             // Rozpoznaj czy kod to bezpośredni webhook czy link z parametrem ?webhook=
             let targetWebhook = decodedText.trim();
+            let targetSheetsUrl = '';
 
-            if (decodedText.includes('webhook=')) {
+            if (decodedText.includes('webhook=') || decodedText.includes('sheets=')) {
               try {
                 const url = new URL(decodedText);
                 const param = url.searchParams.get('webhook');
                 if (param) targetWebhook = decodeURIComponent(param);
+                const sheetsParam = url.searchParams.get('sheets');
+                if (sheetsParam) targetSheetsUrl = decodeURIComponent(sheetsParam);
               } catch (e) {
                 const match = decodedText.match(/webhook=([^&]+)/);
                 if (match && match[1]) targetWebhook = decodeURIComponent(match[1]);
+                const matchSheets = decodedText.match(/sheets=([^&]+)/);
+                if (matchSheets && matchSheets[1]) targetSheetsUrl = decodeURIComponent(matchSheets[1]);
               }
             }
 
-            if (targetWebhook.startsWith('https://chat.googleapis.com/') || targetWebhook.includes('googleapis.com')) {
-              updateSettings({
-                googleChatWebhookUrl: targetWebhook,
+            if (targetWebhook.startsWith('https://chat.googleapis.com/') || targetWebhook.includes('googleapis.com') || targetSheetsUrl) {
+              const updates: any = {
                 includeNameInSimpleMessage: true,
-              });
+              };
+              if (targetWebhook.startsWith('https://chat.googleapis.com/') || targetWebhook.includes('googleapis.com')) {
+                updates.googleChatWebhookUrl = targetWebhook;
+              }
+              if (targetSheetsUrl) {
+                updates.googleSheetsUrl = targetSheetsUrl;
+              }
+              updateSettings(updates);
 
-              setScanSuccess('Webhook został pomyślnie wgrany do Twojej aplikacji!');
+              setScanSuccess(
+                targetSheetsUrl 
+                  ? 'Pomyślnie wgrano Webhook Google Chat oraz Arkusz Google sektora!'
+                  : 'Webhook został pomyślnie wgrany do Twojej aplikacji!'
+              );
               stopScanner();
             } else {
-              setScanError('Zeskanowany kod QR nie jest poprawnym adresem webhooka Google Chat.');
+              setScanError('Zeskanowany kod QR nie jest poprawnym kodem konfiguracji sektora.');
             }
           },
           () => {

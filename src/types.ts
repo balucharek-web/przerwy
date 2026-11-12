@@ -32,6 +32,7 @@ export interface UserSettings {
   pocketLockEnabled?: boolean; // default true: prevents accidental taps in pocket (hold to start/stop)
   appBadgeEnabled?: boolean; // default true: displays remaining break minutes badge on home screen app icon
   autoAddToCalendar?: boolean; // default false: automatically prompts/adds break event to Android Calendar upon stop
+  googleSheetsUrl?: string; // Optional Google Apps Script Web App URL for sector Google Sheet sync
 }
 
 export interface WebhookLog {

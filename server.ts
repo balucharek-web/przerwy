@@ -226,6 +226,98 @@ app.post('/api/webhook/google-chat', async (req, res) => {
   }
 });
 
+// Proxy for Google Apps Script to bypass browser CORS in dev/preview & provide rich diagnostics
+app.post('/api/sheets/proxy', async (req, res) => {
+  const { scriptUrl, action = 'ping', userName, breakData } = req.body;
+
+  if (!scriptUrl || typeof scriptUrl !== 'string') {
+    return res.status(400).json({ success: false, message: 'Brak adresu URL skryptu.' });
+  }
+
+  let cleanUrl = scriptUrl.trim().replace(/^["']|["']$/g, '');
+  if (cleanUrl.includes('/edit')) {
+    cleanUrl = cleanUrl.replace(/\/edit.*$/, '/exec');
+  }
+  if (cleanUrl.endsWith('/dev')) {
+    cleanUrl = cleanUrl.replace(/\/dev$/, '/exec');
+  }
+  if (cleanUrl.includes('/macros/s/') && !cleanUrl.endsWith('/exec')) {
+    cleanUrl = cleanUrl.replace(/\/+$/, '') + '/exec';
+  }
+
+  try {
+    if (action === 'ping' || action === 'get_breaks') {
+      const urlObj = new URL(cleanUrl);
+      urlObj.searchParams.set('action', action);
+      if (userName) urlObj.searchParams.set('userName', userName);
+
+      const response = await fetch(urlObj.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'PrzerwaPro-Sync-Agent/1.6.0',
+        },
+        redirect: 'follow',
+      });
+
+      const text = await response.text();
+
+      // Check if redirected to Google Accounts login (meaning "Who has access" is not "Anyone")
+      if (text.includes('accounts.google.com') || text.includes('Sign in') || text.includes('Zaloguj się') || text.includes('ServiceLogin')) {
+        return res.json({
+          success: false,
+          requiresAuth: true,
+          message: 'Arkusz wymaga zalogowania! W Apps Script w ustawieniach wdrożenia zmień pole "Kto ma dostęp" (Who has access) na "Każdy" (Anyone), a nie "Tylko ja".',
+        });
+      }
+
+      try {
+        const json = JSON.parse(text);
+        return res.json(json);
+      } catch {
+        return res.json({
+          success: false,
+          message: `Odpowiedź z Apps Script nie jest JSON-em: ${text.slice(0, 150)}...`,
+        });
+      }
+    } else if (action === 'record_break') {
+      const payload = {
+        action: 'record_break',
+        userName: userName || 'Pracownik',
+        break: breakData || {},
+      };
+
+      const response = await fetch(cleanUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=UTF-8',
+        },
+        body: JSON.stringify(payload),
+        redirect: 'follow',
+      });
+
+      const text = await response.text();
+      try {
+        const json = JSON.parse(text);
+        return res.json(json);
+      } catch {
+        return res.json({
+          success: true,
+          message: 'Zapisano przerwę w Arkuszu Google.',
+        });
+      }
+    }
+
+    return res.status(400).json({ success: false, message: 'Nieznana akcja skryptu.' });
+  } catch (err: any) {
+    console.error('[SheetsProxy] Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: `Błąd serwera proxy: ${err?.message || 'Nieznany błąd'}`,
+    });
+  }
+});
+
 // Health endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });

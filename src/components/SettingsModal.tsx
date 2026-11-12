@@ -26,6 +26,11 @@ import {
   Info,
   Cloud,
   CalendarPlus,
+  FileSpreadsheet,
+  Copy,
+  Check,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { sendSystemNotification } from '../utils/audioAlert';
@@ -56,6 +61,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     manualGoogleSync,
     authError,
     clearAuthError,
+    isSheetsSyncing,
+    lastSheetsSyncTime,
+    sheetsSyncStatus,
+    syncFromGoogleSheets,
+    testGoogleSheets,
   } = useBreaks();
 
   const [userName, setUserName] = useState(settings.googleChatUserName);
@@ -88,6 +98,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [testWebhookResult, setTestWebhookResult] = useState<{ status: 'success' | 'error'; message: string } | null>(null);
 
+  // Google Sheets state
+  const [googleSheetsUrl, setGoogleSheetsUrl] = useState(settings.googleSheetsUrl || '');
+  const [showSheetsGuide, setShowSheetsGuide] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
+  const [testSheetsResult, setTestSheetsResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestingSheets, setIsTestingSheets] = useState(false);
+
   const handleTestSystemVibration = async () => {
     setVibrationTestState('sys-vibrating');
     await sendSystemNotification('🔔 Test wibracji systemowej', {
@@ -119,6 +136,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
+  const handleTestGoogleSheets = async () => {
+    setIsTestingSheets(true);
+    setTestSheetsResult(null);
+    try {
+      const urlToTest = googleSheetsUrl.trim();
+      const res = await testGoogleSheets(urlToTest);
+      if (res.correctedUrl) {
+        setGoogleSheetsUrl(res.correctedUrl);
+      }
+      setTestSheetsResult(res);
+    } catch (err: any) {
+      setTestSheetsResult({ success: false, message: err?.message || 'Błąd testowania połączenia z Arkuszem.' });
+    } finally {
+      setIsTestingSheets(false);
+    }
+  };
+
+  const handleSyncFromSheets = async () => {
+    if (googleSheetsUrl.trim() !== settings.googleSheetsUrl) {
+      updateSettings({ googleSheetsUrl: googleSheetsUrl.trim() });
+    }
+    await syncFromGoogleSheets(true);
+  };
+
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -148,6 +189,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       pocketLockEnabled: false,
       appBadgeEnabled,
       autoAddToCalendar,
+      googleSheetsUrl: googleSheetsUrl.trim(),
     });
 
     setSaveSuccess(true);
@@ -444,6 +486,178 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <CalendarPlus className="w-3.5 h-3.5" />
                 <span>📅 Przetestuj dodanie zdarzenia do Kalendarza teraz</span>
               </button>
+            </div>
+          </div>
+
+          {/* Section: Google Sheets Integration (Wspólny Arkusz Sektora - Zapis i Pobieranie) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                    Arkusz Google (Wspólna baza przerw sektora)
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded-full font-normal border border-emerald-500/30">
+                      Zapis + Pobieranie
+                    </span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    Zakładki z miesiącami, osobne kolumny dla każdego pracownika i auto-synchronizacja
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1 text-xs">
+                  Adres aplikacji internetowej Google Apps Script (Web App URL)
+                </label>
+                <div className="relative">
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-400 absolute left-3 top-2.5" />
+                  <input
+                    type="url"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    value={googleSheetsUrl}
+                    onChange={(e) => setGoogleSheetsUrl(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-emerald-500 placeholder:text-slate-600"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                  Adres skryptu z Twojego prywatnego Arkusza Google. Niewykorzystywane przez inne sektory – każdy sektor ma swój własny arkusz.
+                </p>
+              </div>
+
+              {/* Akcje: Testuj, Pobierz z Arkusza, Instrukcja */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestGoogleSheets}
+                  disabled={isTestingSheets || !googleSheetsUrl.trim()}
+                  className="py-2 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isTestingSheets ? 'animate-spin' : ''}`} />
+                  <span>{isTestingSheets ? 'Testuję...' : 'Przetestuj Arkusz'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSyncFromSheets}
+                  disabled={isSheetsSyncing || !googleSheetsUrl.trim()}
+                  className="py-2 px-2.5 rounded-xl bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-blue-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-50 active:scale-95"
+                  title="Pobierz historię przerw z Arkusza do tej aplikacji"
+                >
+                  <Download className={`w-3.5 h-3.5 text-blue-400 ${isSheetsSyncing ? 'animate-bounce' : ''}`} />
+                  <span>{isSheetsSyncing ? 'Pobieram...' : 'Pobierz historię'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSheetsGuide(!showSheetsGuide)}
+                  className="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-95"
+                >
+                  <Info className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{showSheetsGuide ? 'Ukryj instrukcję' : 'Instrukcja & Kod'}</span>
+                </button>
+              </div>
+
+              {/* Statusy testu i synchronizacji */}
+              {testSheetsResult && (
+                <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 animate-in fade-in ${
+                  testSheetsResult.success
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200'
+                    : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
+                }`}>
+                  {testSheetsResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="font-bold">
+                      {testSheetsResult.success ? 'Połączenie z Arkuszem działa!' : 'Błąd połączenia'}
+                    </p>
+                    <p className="text-[11px] opacity-90 leading-relaxed whitespace-pre-line">{testSheetsResult.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {sheetsSyncStatus.message && !testSheetsResult && (
+                <div className={`p-2.5 rounded-xl border text-xs flex items-start gap-2 animate-in fade-in ${
+                  sheetsSyncStatus.status === 'success'
+                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200'
+                    : sheetsSyncStatus.status === 'error'
+                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-200'
+                    : 'bg-blue-500/15 border-blue-500/30 text-blue-200'
+                }`}>
+                  {sheetsSyncStatus.status === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : sheetsSyncStatus.status === 'error' ? (
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 text-blue-400 animate-spin shrink-0 mt-0.5" />
+                  )}
+                  <div className="space-y-0.5">
+                    <p className="text-[11px] leading-relaxed whitespace-pre-line">{sheetsSyncStatus.message}</p>
+                    {lastSheetsSyncTime && (
+                      <p className="text-[10px] text-slate-400">Ostatnia synchronizacja: {lastSheetsSyncTime}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Rozwijana instrukcja i kod skryptu do wklejenia w Arkuszu Google */}
+              {showSheetsGuide && (
+                <div className="mt-2 p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-3 text-xs text-slate-300 animate-in fade-in">
+                  <h5 className="font-bold text-white flex items-center gap-1.5 text-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    Jak uruchomić w 2 minuty na swoim prywatnym koncie Google:
+                  </h5>
+                  <ol className="list-decimal pl-4 space-y-1.5 text-[11px] text-slate-300">
+                    <li>Otwórz <a href="https://sheets.new" target="_blank" rel="noopener noreferrer" className="text-emerald-400 underline font-semibold">sheets.new</a> na swoim prywatnym Dysku Google i nazwij plik np. <em>„Przerwy Sektor”</em>.</li>
+                    <li>W menu górnym Arkusza kliknij: <strong>Rozszerzenia → Apps Script</strong>.</li>
+                    <li>Skasuj kod, który tam jest i wklej poniższy skrypt.</li>
+                    <li>Kliknij ikonę dyskietki (Zapisz), a następnie niebieski przycisk <strong>Wdróż → Nowe wdrożenie</strong>.</li>
+                    <li>Wybierz typ <strong>Aplikacja internetowa (Web app)</strong> i ustaw:
+                      <ul className="list-disc pl-4 mt-1 text-slate-400">
+                        <li>Wykonaj jako: <strong>Ja</strong></li>
+                        <li>Kto ma dostęp: <strong className="text-emerald-300">Każdy (Anyone)</strong> <span className="text-[10px]">(dzięki temu koledzy z sektora nie muszą się logować!)</span></li>
+                      </ul>
+                    </li>
+                    <li>Kliknij <strong>Wdróż</strong>, zaakceptuj uprawnienia i skopiuj <strong>Adres URL aplikacji internetowej</strong> (z końcówką <code>/exec</code>).</li>
+                    <li>Wklej ten link w polu powyżej. Gotowe!</li>
+                  </ol>
+
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-semibold text-slate-400">Kod skryptu Google Apps Script:</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('./google-apps-script.js');
+                            const text = await res.text();
+                            await navigator.clipboard.writeText(text);
+                            setCopiedScript(true);
+                            setTimeout(() => setCopiedScript(false), 2500);
+                          } catch {
+                            setCopiedScript(false);
+                          }
+                        }}
+                        className="py-1 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center gap-1 transition cursor-pointer shadow-sm active:scale-95"
+                      >
+                        {copiedScript ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedScript ? '✓ Skopiowano do schowka!' : 'Kopiuj cały kod skryptu'}</span>
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Plik ze skryptem możesz też pobrać bezpośrednio: <a href="./google-apps-script.js" download="google-apps-script.js" className="text-emerald-400 underline">pobierz google-apps-script.js</a>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

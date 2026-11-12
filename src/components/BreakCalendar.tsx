@@ -12,13 +12,23 @@ import {
   X,
   FileSpreadsheet,
   CalendarPlus,
+  RefreshCw,
 } from 'lucide-react';
 import { useBreaks } from '../context/BreakContext';
 import { formatDuration, formatTimeOnly, formatDurationHuman, formatDateLabel, getDayKey } from '../utils/dateUtils';
 import { BreakRecord } from '../types';
 
 export const BreakCalendar: React.FC = () => {
-  const { breaks, settings, deleteBreak, addManualBreak, addBreakToCalendar, exportDayToICS } = useBreaks();
+  const {
+    breaks,
+    settings,
+    deleteBreak,
+    addManualBreak,
+    addBreakToCalendar,
+    exportDayToICS,
+    syncFromGoogleSheets,
+    isSheetsSyncing,
+  } = useBreaks();
 
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDayKey, setSelectedDayKey] = useState<string>(() => {
@@ -221,6 +231,17 @@ export const BreakCalendar: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {settings.googleSheetsUrl && (
+            <button
+              onClick={() => syncFromGoogleSheets(true)}
+              disabled={isSheetsSyncing}
+              className="px-2.5 py-1 text-xs rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 transition flex items-center gap-1 border border-emerald-500/30 cursor-pointer disabled:opacity-50"
+              title="Pobierz i zsynchronizuj historię z Arkusza Google"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSheetsSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Pobierz z Arkusza</span>
+            </button>
+          )}
           <button
             onClick={handleExportMonthCSV}
             className="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition flex items-center gap-1 border border-slate-700/80 cursor-pointer"

@@ -44,6 +44,11 @@ import { User } from 'firebase/auth';
 import { initAuth, googleSignIn, logout as authLogout, getAccessToken, getAuthErrorDescription } from '../utils/googleAuth';
 import { saveBackupToGoogleDrive, loadBackupFromGoogleDrive } from '../utils/googleDriveSync';
 import { addBreakToAndroidCalendar, exportBreaksToICSFile } from '../utils/calendarService';
+import {
+  saveBreakToGoogleSheets,
+  fetchBreaksFromGoogleSheets,
+  testGoogleSheetsConnection,
+} from '../utils/googleSheetsSync';
 
 interface BreakContextType {
   settings: UserSettings;
@@ -84,6 +89,11 @@ interface BreakContextType {
   addBreakToCalendar: (b: BreakRecord) => void;
   exportDayToICS: (dayKey?: string) => void;
   retryLastWebhook: () => Promise<WebhookLog>;
+  isSheetsSyncing: boolean;
+  lastSheetsSyncTime: string | null;
+  sheetsSyncStatus: { status: 'idle' | 'syncing' | 'success' | 'error'; message: string };
+  syncFromGoogleSheets: (manual?: boolean) => Promise<boolean>;
+  testGoogleSheets: (customUrl?: string) => Promise<{ success: boolean; message: string; spreadsheetTitle?: string; correctedUrl?: string }>;
 }
 
 import { updateAppBadge, clearAppBadge } from '../utils/badgeService';
@@ -113,6 +123,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   keepScreenAwakeDuringBreak: false,
   pocketLockEnabled: false,
   appBadgeEnabled: true,
+  googleSheetsUrl: '',
 };
 
 const BreakContext = createContext<BreakContextType | undefined>(undefined);
@@ -190,6 +201,16 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [lastGoogleSyncTime, setLastGoogleSyncTime] = useState<string | null>(() => {
     return localStorage.getItem('przerwapro_last_google_sync');
   });
+
+  // Google Sheets (Sector Shared Database) state
+  const [isSheetsSyncing, setIsSheetsSyncing] = useState<boolean>(false);
+  const [lastSheetsSyncTime, setLastSheetsSyncTime] = useState<string | null>(() => {
+    return localStorage.getItem('przerwapro_last_sheets_sync');
+  });
+  const [sheetsSyncStatus, setSheetsSyncStatus] = useState<{
+    status: 'idle' | 'syncing' | 'success' | 'error';
+    message: string;
+  }>({ status: 'idle', message: '' });
 
   // Undo state for accidental Start / Stop clicks
   const [undoState, setUndoState] = useState<{
@@ -964,6 +985,33 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }, 400);
     }
+
+    // Auto-save completed break to sector Google Sheet if configured
+    if (settings.googleSheetsUrl) {
+      setTimeout(async () => {
+        try {
+          setIsSheetsSyncing(true);
+          const res = await saveBreakToGoogleSheets(
+            settings.googleSheetsUrl!,
+            settings.googleChatUserName,
+            completed,
+            settings.googleChatWebhookUrl
+          );
+          if (res.success) {
+            const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+            setLastSheetsSyncTime(syncTime);
+            localStorage.setItem('przerwapro_last_sheets_sync', syncTime);
+            setSheetsSyncStatus({ status: 'success', message: res.message });
+          } else {
+            setSheetsSyncStatus({ status: 'error', message: res.message });
+          }
+        } catch (err: any) {
+          setSheetsSyncStatus({ status: 'error', message: err?.message || 'Błąd zapisu w Arkuszu' });
+        } finally {
+          setIsSheetsSyncing(false);
+        }
+      }, 500);
+    }
   };
 
   const addBreakToCalendar = (b: BreakRecord) => {
@@ -1080,6 +1128,85 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
     addWebhookLog(log);
     return log;
+  };
+
+  const syncFromGoogleSheets = async (manual: boolean = false): Promise<boolean> => {
+    if (!settings.googleSheetsUrl) {
+      if (manual) {
+        setSheetsSyncStatus({ status: 'error', message: 'Wklej najpierw adres skryptu Google Apps Script w Ustawieniach.' });
+      }
+      return false;
+    }
+
+    setIsSheetsSyncing(true);
+    setSheetsSyncStatus({ status: 'syncing', message: 'Pobieranie historii przerw z Arkusza Google...' });
+
+    try {
+      // Pobierz przerwy dla bieżącego użytkownika (lub wszystkich jeśli imię nie jest ustawione)
+      const targetUser = (settings.googleChatUserName && settings.googleChatUserName !== 'Pracownik')
+        ? settings.googleChatUserName
+        : undefined;
+
+      const res = await fetchBreaksFromGoogleSheets(settings.googleSheetsUrl, targetUser);
+      if (res.success && res.breaks) {
+        setBreaks((prev) => {
+          // Łączenie z auto-deduplikacją (po id lub identycznym czasie startu i końca)
+          const merged = [...prev];
+          let addedCount = 0;
+          for (const incoming of res.breaks!) {
+            const exists = merged.some(
+              (b) => b.id === incoming.id || (b.startTime === incoming.startTime && b.endTime === incoming.endTime)
+            );
+            if (!exists) {
+              merged.push(incoming);
+              addedCount++;
+            }
+          }
+          return merged.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+        });
+
+        const syncTime = new Date().toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+        setLastSheetsSyncTime(syncTime);
+        localStorage.setItem('przerwapro_last_sheets_sync', syncTime);
+        setSheetsSyncStatus({
+          status: 'success',
+          message: res.breaks.length > 0
+            ? `Pomyślnie zsynchronizowano ${res.breaks.length} przerw z Arkusza Google!`
+            : 'Arkusz połączony poprawnie (brak wpisów do pobrania).',
+        });
+        return true;
+      } else {
+        setSheetsSyncStatus({ status: 'error', message: res.message });
+        return false;
+      }
+    } catch (err: any) {
+      setSheetsSyncStatus({ status: 'error', message: err?.message || 'Błąd pobierania danych z Arkusza.' });
+      return false;
+    } finally {
+      setIsSheetsSyncing(false);
+    }
+  };
+
+  const testGoogleSheets = async (customUrl?: string): Promise<{ success: boolean; message: string; spreadsheetTitle?: string; correctedUrl?: string }> => {
+    const urlToTest = customUrl || settings.googleSheetsUrl;
+    if (!urlToTest) {
+      return { success: false, message: 'Wklej najpierw adres URL aplikacji internetowej Google Apps Script.' };
+    }
+    setIsSheetsSyncing(true);
+    try {
+      const res = await testGoogleSheetsConnection(urlToTest);
+      if (res.correctedUrl) {
+        updateSettings({ googleSheetsUrl: res.correctedUrl });
+      }
+      if (res.success) {
+        setSheetsSyncStatus({ status: 'success', message: res.message });
+      } else {
+        setSheetsSyncStatus({ status: 'error', message: res.message });
+      }
+      return res;
+    } finally {
+      setIsSheetsSyncing(false);
+    }
   };
 
   const testSoundAlarm = (type: 'warning' | 'final', volume?: number) => {
@@ -1231,6 +1358,23 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.history.replaceState({}, '', url.toString());
     }
 
+    // Check if coworker scanned QR code or clicked shared link with ?sheets=...
+    const sheetsParam = url.searchParams.get('sheets');
+    if (sheetsParam) {
+      try {
+        const decodedSheets = decodeURIComponent(sheetsParam);
+        updateSettings({
+          googleSheetsUrl: decodedSheets,
+        });
+      } catch {
+        updateSettings({
+          googleSheetsUrl: sheetsParam,
+        });
+      }
+      url.searchParams.delete('sheets');
+      window.history.replaceState({}, '', url.toString());
+    }
+
     if (action === 'start' && !activeBreak) {
       startBreak();
       url.searchParams.delete('action');
@@ -1241,6 +1385,13 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.history.replaceState({}, '', url.toString());
     }
   }, []);
+
+  // Auto-restore breaks from Google Sheets if local history is empty and Google Sheets URL is configured
+  useEffect(() => {
+    if (settings.googleSheetsUrl && breaks.length === 0) {
+      syncFromGoogleSheets(false);
+    }
+  }, [settings.googleSheetsUrl]);
 
   // Handle background notification clicks & broadcast channel triggers
   useEffect(() => {
@@ -1355,6 +1506,11 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addBreakToCalendar,
         exportDayToICS,
         retryLastWebhook,
+        isSheetsSyncing,
+        lastSheetsSyncTime,
+        sheetsSyncStatus,
+        syncFromGoogleSheets,
+        testGoogleSheets,
       }}
     >
       {children}
