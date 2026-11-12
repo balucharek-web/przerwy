@@ -339,7 +339,7 @@ export async function testGoogleSheetsConnection(
     if (rawText.includes('idpb2e') || rawText.includes('Authentication page') || rawText.includes('adeo.com')) {
       return {
         success: false,
-        message: '⚠️ Wykryto firmowy portal logowania Leroy Merlin / ADEO (idpb2e)!\n\nArkusz został utworzony na koncie firmowym (@leroymerlin.pl), które wymusza logowanie SSO i blokuje dostęp aplikacji.\n\n👉 Rozwiązanie:\n1. Otwórz nowe okno Incognito w przeglądarce (lub zaloguj się na prywatne konto @gmail.com).\n2. Utwórz nowy arkusz na prywatnym koncie Google.\n3. Wklej skrypt i wdróż go z opcją „Kto ma dostęp: Każdy”.\nKonto prywatne @gmail.com nie ma blokady ADEO i zadziała od razu!',
+        message: '⚠️ Wykryto blokadę logowania ADEO SSO (idpb2e)!\n\nTwój arkusz znajduje się na Dysku ADEO. Aby aplikacja mogła do niego zapisywać bez blokady portalu logowania:\n\n1. W Arkuszu ADEO wejdź w: Rozszerzenia ➔ Apps Script.\n2. Kliknij: Wdróż ➔ Zarządzaj wdrożeniami (ikona ołówka - Edytuj).\n3. W polu „Wersja” wybierz: Nowa wersja.\n4. W polu „Kto ma dostęp” (Who has access) zmień z „Każdy w organizacji ADEO” na: „Każdy” (Anyone)!\n5. Upewnij się, że „Wykonaj jako” to: „Ja”.\n\nArkusz nadal w 100% pozostanie w Twojej domenie ADEO, ale Google zezwoli na zapis przerw bez przekierowania do idpb2e.',
       };
     }
 
