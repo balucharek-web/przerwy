@@ -235,6 +235,9 @@ app.post('/api/sheets/proxy', async (req, res) => {
   }
 
   let cleanUrl = scriptUrl.trim().replace(/^["']|["']$/g, '');
+  if (cleanUrl.includes('/a/macros/')) {
+    cleanUrl = cleanUrl.replace(/\/a\/macros\/[^/]+\/s\//, '/macros/s/');
+  }
   if (cleanUrl.includes('/edit')) {
     cleanUrl = cleanUrl.replace(/\/edit.*$/, '/exec');
   }

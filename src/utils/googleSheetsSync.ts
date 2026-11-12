@@ -7,7 +7,7 @@
  * Features:
  * 1. Automatic logging of breaks into monthly formatted tabs with per-person columns.
  * 2. Bi-directional sync: downloads break history from Google Sheets into PrzerwaPro.
- * 3. 100% Works in Android Work Profile without OAuth approval.
+ * 3. 100% Works in Android Work Profile and corporate domains (ADEO / Leroy Merlin).
  */
 
 import { BreakRecord } from '../types';
@@ -24,6 +24,12 @@ export interface SheetsSyncResponse {
 export function normalizeScriptUrl(url: string): string {
   if (!url) return '';
   let clean = url.trim().replace(/^["']|["']$/g, '');
+
+  // Strip Google Workspace tenant prefix (e.g. /a/macros/leroymerlin.pl/s/ -> /macros/s/)
+  // This is CRITICAL: /a/macros/ forces tenant-level SSO (idpb2e) even if deployed to Anyone!
+  if (clean.includes('/a/macros/')) {
+    clean = clean.replace(/\/a\/macros\/[^/]+\/s\//, '/macros/s/');
+  }
 
   // If user pasted Google Sheets doc URL by mistake, keep it so validator can explain
   if (clean.includes('docs.google.com/spreadsheets')) {
@@ -99,7 +105,7 @@ export async function saveBreakToGoogleSheets(
       }
     }
   } catch {
-    // Proxy not available (e.g. GitHub Pages static host) -> proceed to direct fetch
+    // Proxy not available (e.g. GitHub Pages static host) -> proceed to direct strategies
   }
 
   const payloadString = JSON.stringify(payload);
@@ -131,7 +137,7 @@ export async function saveBreakToGoogleSheets(
       }
     }
   } catch (err) {
-    console.warn('[GoogleSheets] Direct POST error, trying no-cors fallback:', err);
+    console.warn('[GoogleSheets] Direct POST error, trying fallbacks:', err);
   }
 
   // Strategy 2: mode: 'no-cors' fallback (guarantees delivery if browser sandbox blocks redirect parsing)
@@ -213,6 +219,97 @@ export function submitBreakViaHiddenForm(cleanUrl: string, payload: any): void {
 }
 
 /**
+ * JSONP ping helper for bypassing mobile CORS and redirect issues on GitHub Pages
+ */
+function jsonpPing(url: string, timeoutMs = 7000): Promise<{ success: boolean; message: string; spreadsheetTitle?: string }> {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') return reject(new Error('Brak środowiska DOM'));
+    const callbackName = 'przerwapro_ping_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const script = document.createElement('script');
+    let timer: any;
+
+    (window as any)[callbackName] = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      delete (window as any)[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Błąd ładowania skryptu (JSONP)'));
+    };
+
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Przekroczono limit czasu odpowiedzi'));
+    }, timeoutMs);
+
+    try {
+      const queryUrl = new URL(url);
+      queryUrl.searchParams.set('action', 'ping');
+      queryUrl.searchParams.set('callback', callbackName);
+      script.src = queryUrl.toString();
+      document.body.appendChild(script);
+    } catch (e: any) {
+      cleanup();
+      reject(e);
+    }
+  });
+}
+
+/**
+ * JSONP break history fetch helper for bypassing mobile CORS on GitHub Pages
+ */
+function jsonpFetchBreaks(url: string, userName?: string, timeoutMs = 10000): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (typeof document === 'undefined') return reject(new Error('Brak środowiska DOM'));
+    const callbackName = 'przerwapro_breaks_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    const script = document.createElement('script');
+    let timer: any;
+
+    (window as any)[callbackName] = (data: any) => {
+      cleanup();
+      resolve(data);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timer);
+      delete (window as any)[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error('Błąd ładowania historii (JSONP)'));
+    };
+
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('Przekroczono limit czasu pobierania'));
+    }, timeoutMs);
+
+    try {
+      const queryUrl = new URL(url);
+      queryUrl.searchParams.set('action', 'get_breaks');
+      if (userName && userName.trim()) {
+        queryUrl.searchParams.set('userName', userName.trim());
+      }
+      queryUrl.searchParams.set('callback', callbackName);
+      script.src = queryUrl.toString();
+      document.body.appendChild(script);
+    } catch (e: any) {
+      cleanup();
+      reject(e);
+    }
+  });
+}
+
+/**
  * Fetches break history for user or entire sector from Google Sheets
  */
 export async function fetchBreaksFromGoogleSheets(
@@ -280,12 +377,33 @@ export async function fetchBreaksFromGoogleSheets(
       redirect: 'follow',
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.breaks)) {
+        const sanitized: BreakRecord[] = data.breaks.map((b: any) => ({
+          id: b.id || `brk_sheet_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          startTime: b.startTime,
+          endTime: b.endTime || null,
+          durationSeconds: Number(b.durationSeconds) || 0,
+          note: b.note || '',
+          dayKey: b.dayKey || b.startTime?.slice(0, 10),
+        })).filter((b: BreakRecord) => Boolean(b.startTime && b.durationSeconds > 0));
 
-    const data = await res.json();
-    if (data.success && Array.isArray(data.breaks)) {
+        return {
+          success: true,
+          message: `Pobrano ${sanitized.length} wpisów z Arkusza Google.`,
+          breaks: sanitized,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[GoogleSheets] Direct fetch error, trying JSONP:', err);
+  }
+
+  // Strategy 2: JSONP fallback (works seamlessly on mobile GitHub Pages)
+  try {
+    const data = await jsonpFetchBreaks(cleanUrl, userName);
+    if (data && data.success && Array.isArray(data.breaks)) {
       const sanitized: BreakRecord[] = data.breaks.map((b: any) => ({
         id: b.id || `brk_sheet_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         startTime: b.startTime,
@@ -297,22 +415,18 @@ export async function fetchBreaksFromGoogleSheets(
 
       return {
         success: true,
-        message: `Pobrano ${sanitized.length} wpisów z Arkusza Google.`,
+        message: `Pobrano ${sanitized.length} wpisów z Arkusza Google (JSONP).`,
         breaks: sanitized,
       };
-    } else {
-      return {
-        success: false,
-        message: data.message || 'Arkusz nie zwrócił poprawnych danych.',
-      };
     }
-  } catch (err: any) {
-    console.warn('[GoogleSheets] Fetch error:', err);
-    return {
-      success: false,
-      message: `Nie udało się pobrać danych z Arkusza: ${err?.message || 'Błąd sieci. Upewnij się, że w Apps Script "Kto ma dostęp" to "Każdy"'}`,
-    };
+  } catch (jsonpErr: any) {
+    console.warn('[GoogleSheets] JSONP error:', jsonpErr);
   }
+
+  return {
+    success: false,
+    message: 'Nie udało się pobrać danych z Arkusza. Upewnij się, że w Apps Script „Kto ma dostęp” to „Każdy” oraz że w adresie URL usunięto /a/macros/leroymerlin.pl/',
+  };
 }
 
 /**
@@ -365,11 +479,12 @@ export async function testGoogleSheetsConnection(
         return {
           success: false,
           message: data.message || 'Skrypt odpowiedział błędem.',
+          correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
         };
       }
     }
   } catch {
-    // Proxy niedostępny (np. statyczny hosting GitHub Pages) -> przejdź do bezpośredniego fetch
+    // Proxy niedostępny (np. statyczny hosting GitHub Pages na telefonie) -> przejdź do bezpośredniego fetch
   }
 
   // Strategy 1: Bezpośrednie zapytanie z przeglądarki (wymagane na GitHub Pages)
@@ -385,43 +500,50 @@ export async function testGoogleSheetsConnection(
       redirect: 'follow',
     });
 
-    if (!res.ok) {
-      throw new Error(`Błąd HTTP ${res.status}`);
-    }
-
-    const rawText = await res.text();
-    if (rawText.includes('idpb2e') || rawText.includes('Authentication page') || rawText.includes('adeo.com')) {
-      return {
-        success: false,
-        message: '⚠️ Wykryto blokadę logowania ADEO SSO (idpb2e)!\n\nTwój arkusz znajduje się na Dysku ADEO. Aby aplikacja mogła do niego zapisywać bez blokady portalu logowania:\n\n1. W Arkuszu ADEO wejdź w: Rozszerzenia ➔ Apps Script.\n2. Kliknij: Wdróż ➔ Zarządzaj wdrożeniami (ikona ołówka - Edytuj).\n3. W polu „Wersja” wybierz: Nowa wersja.\n4. W polu „Kto ma dostęp” (Who has access) zmień z „Każdy w organizacji ADEO” na: „Każdy” (Anyone)!\n5. Upewnij się, że „Wykonaj jako” to: „Ja”.\n\nArkusz nadal w 100% pozostanie w Twojej domenie ADEO, ale Google zezwoli na zapis przerw bez przekierowania do idpb2e.',
-      };
-    }
-
-    try {
-      const data = JSON.parse(rawText);
-      if (data.success) {
-        return {
-          success: true,
-          message: `Połączono pomyślnie z Arkuszem: "${data.spreadsheetTitle || 'Arkusz przerw'}"`,
-          spreadsheetTitle: data.spreadsheetTitle,
-          correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
-        };
-      } else {
+    if (res.ok) {
+      const rawText = await res.text();
+      if (rawText.includes('idpb2e') || rawText.includes('Authentication page') || rawText.includes('adeo.com')) {
         return {
           success: false,
-          message: data.message || 'Skrypt odpowiedział błędem.',
+          message: '⚠️ Wykryto blokadę logowania ADEO SSO (idpb2e)!\n\nTwój arkusz znajduje się na Dysku ADEO. Aby aplikacja mogła do niego zapisywać bez blokady portalu logowania:\n\n1. W Arkuszu ADEO wejdź w: Rozszerzenia ➔ Apps Script.\n2. Kliknij: Wdróż ➔ Zarządzaj wdrożeniami (ikona ołówka - Edytuj).\n3. W polu „Wersja” wybierz: Nowa wersja.\n4. W polu „Kto ma dostęp” (Who has access) zmień z „Każdy w organizacji ADEO” na: „Każdy” (Anyone)!\n5. Upewnij się, że „Wykonaj jako” to: „Ja”.\n\nArkusz nadal w 100% pozostanie w Twojej domenie ADEO, ale Google zezwoli na zapis przerw bez przekierowania do idpb2e.',
+          correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
         };
       }
-    } catch {
-      return {
-        success: false,
-        message: `Odpowiedź z Arkusza nie jest JSON-em. Upewnij się, że wdrożyłeś skrypt jako aplikację internetową (Web App) z dostępem dla "Każdy".`,
-      };
+
+      try {
+        const data = JSON.parse(rawText);
+        if (data.success) {
+          return {
+            success: true,
+            message: `Połączono pomyślnie z Arkuszem: "${data.spreadsheetTitle || 'Arkusz przerw'}"`,
+            spreadsheetTitle: data.spreadsheetTitle,
+            correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
+          };
+        }
+      } catch {}
     }
   } catch (err: any) {
-    return {
-      success: false,
-      message: `Błąd połączenia: Failed to fetch.\n\nNajczęstsze przyczyny:\n1. W Apps Script w konfiguracji wdrożenia pole „Kto ma dostęp” (Who has access) MUSI być wybrane jako „Każdy” (Anyone) – jeśli jest „Tylko ja”, Google wymaga logowania i blokuje dostęp!\n2. Adres URL musi kończyć się na /exec (nie /dev ani /edit).\n3. Pamiętaj, aby zatwierdzić uprawnienia konta Google przy klikaniu „Wdróż”.`,
-    };
+    console.warn('[GoogleSheets] Direct fetch failed on mobile, attempting JSONP fallback:', err);
   }
+
+  // Strategy 2: JSONP Ping (bypasses mobile browser CORS and redirect restrictions on GitHub Pages!)
+  try {
+    const jsonpData = await jsonpPing(cleanUrl);
+    if (jsonpData && jsonpData.success) {
+      return {
+        success: true,
+        message: `Połączono pomyślnie z Arkuszem (JSONP): "${jsonpData.spreadsheetTitle || 'Arkusz przerw'}"`,
+        spreadsheetTitle: jsonpData.spreadsheetTitle,
+        correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
+      };
+    }
+  } catch (jsonpErr) {
+    console.warn('[GoogleSheets] JSONP Ping failed:', jsonpErr);
+  }
+
+  return {
+    success: false,
+    message: `Błąd połączenia: Failed to fetch.\n\nNajczęstsze przyczyny:\n1. Adres URL zawierał przedrostek /a/macros/leroymerlin.pl/ - aplikacja automatycznie poprawiła adres na globalny format /macros/s/...\n2. W Apps Script w konfiguracji wdrożenia pole „Kto ma dostęp” (Who has access) MUSI być wybrane jako „Każdy” (Anyone) – jeśli jest „Tylko ja” lub „Każdy w ADEO”, Google blokuje połączenie!\n3. Upewnij się, że wkleiłeś zaktualizowany kod skryptu z obsługą JSONP.`,
+    correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
+  };
 }

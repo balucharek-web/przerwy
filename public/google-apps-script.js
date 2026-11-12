@@ -29,6 +29,7 @@ function doGet(e) {
   try {
     const params = e.parameter || {};
     const action = params.action || 'ping';
+    const callback = params.callback;
     const ss = SpreadsheetApp.getActiveSpreadsheet();
 
     if (action === 'ping') {
@@ -37,14 +38,14 @@ function doGet(e) {
         message: 'Połączenie z Arkuszem PrzerwaPro działa prawidłowo!',
         spreadsheetTitle: ss.getName(),
         sheets: ss.getSheets().map(s => s.getName())
-      });
+      }, callback);
     }
 
     if (action === 'get_breaks') {
       const targetUser = (params.userName || '').trim().toLowerCase();
       const rawSheet = ss.getSheetByName(RAW_DATA_SHEET_NAME);
       if (!rawSheet || rawSheet.getLastRow() < 2) {
-        return jsonResponse({ success: true, breaks: [] });
+        return jsonResponse({ success: true, breaks: [] }, callback);
       }
 
       const rows = rawSheet.getDataRange().getValues();
@@ -74,12 +75,12 @@ function doGet(e) {
       return jsonResponse({
         success: true,
         breaks: breaks.slice(0, 500)
-      });
+      }, callback);
     }
 
-    return jsonResponse({ success: false, message: 'Nieznana akcja: ' + action });
+    return jsonResponse({ success: false, message: 'Nieznana akcja: ' + action }, callback);
   } catch (err) {
-    return jsonResponse({ success: false, message: 'Błąd skryptu: ' + err.toString() });
+    return jsonResponse({ success: false, message: 'Błąd skryptu: ' + err.toString() }, callback);
   }
 }
 
@@ -287,7 +288,11 @@ function recordIntoVisualMonthlySheet(ss, userName, startTime, endTime, duration
   }
 }
 
-function jsonResponse(data) {
+function jsonResponse(data, callback) {
+  if (callback && typeof callback === 'string' && /^[a-zA-Z0-9_]+$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + JSON.stringify(data) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
