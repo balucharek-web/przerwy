@@ -335,18 +335,33 @@ export async function testGoogleSheetsConnection(
       throw new Error(`Błąd HTTP ${res.status}`);
     }
 
-    const data = await res.json();
-    if (data.success) {
-      return {
-        success: true,
-        message: `Połączono pomyślnie z Arkuszem: "${data.spreadsheetTitle || 'Arkusz przerw'}"`,
-        spreadsheetTitle: data.spreadsheetTitle,
-        correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
-      };
-    } else {
+    const rawText = await res.text();
+    if (rawText.includes('idpb2e') || rawText.includes('Authentication page') || rawText.includes('adeo.com')) {
       return {
         success: false,
-        message: data.message || 'Skrypt odpowiedział błędem.',
+        message: '⚠️ Wykryto firmowy portal logowania Leroy Merlin / ADEO (idpb2e)!\n\nArkusz został utworzony na koncie firmowym (@leroymerlin.pl), które wymusza logowanie SSO i blokuje dostęp aplikacji.\n\n👉 Rozwiązanie:\n1. Otwórz nowe okno Incognito w przeglądarce (lub zaloguj się na prywatne konto @gmail.com).\n2. Utwórz nowy arkusz na prywatnym koncie Google.\n3. Wklej skrypt i wdróż go z opcją „Kto ma dostęp: Każdy”.\nKonto prywatne @gmail.com nie ma blokady ADEO i zadziała od razu!',
+      };
+    }
+
+    try {
+      const data = JSON.parse(rawText);
+      if (data.success) {
+        return {
+          success: true,
+          message: `Połączono pomyślnie z Arkuszem: "${data.spreadsheetTitle || 'Arkusz przerw'}"`,
+          spreadsheetTitle: data.spreadsheetTitle,
+          correctedUrl: cleanUrl !== rawUrl ? cleanUrl : undefined,
+        };
+      } else {
+        return {
+          success: false,
+          message: data.message || 'Skrypt odpowiedział błędem.',
+        };
+      }
+    } catch {
+      return {
+        success: false,
+        message: `Odpowiedź z Arkusza nie jest JSON-em. Upewnij się, że wdrożyłeś skrypt jako aplikację internetową (Web App) z dostępem dla "Każdy".`,
       };
     }
   } catch (err: any) {

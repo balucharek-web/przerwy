@@ -262,7 +262,16 @@ app.post('/api/sheets/proxy', async (req, res) => {
 
       const text = await response.text();
 
-      // Check if redirected to Google Accounts login (meaning "Who has access" is not "Anyone")
+      // Check if redirected to ADEO / Leroy Merlin corporate SSO (idpb2e)
+      if (text.includes('idpb2e') || text.includes('Authentication page') || text.includes('adeo.com')) {
+        return res.json({
+          success: false,
+          requiresAuth: true,
+          message: '⚠️ Wykryto firmowy portal logowania Leroy Merlin / ADEO (idpb2e)!\n\nArkusz został utworzony na koncie firmowym (@leroymerlin.pl), którego zabezpieczenia wymuszają logowanie SSO i blokują dostęp z zewnątrz dla aplikacji.\n\n👉 Rozwiązanie:\n1. Otwórz nowe okno Incognito w przeglądarce (lub zaloguj się na prywatne konto, np. @gmail.com).\n2. Utwórz nowy arkusz na prywatnym Dysku Google.\n3. Wklej skrypt i wdróż go z prywatnego konta z opcją „Kto ma dostęp: Każdy”.\nPrywatne konto @gmail.com nie ma blokady ADEO i zadziała od razu!',
+        });
+      }
+
+      // Check if redirected to standard Google Accounts login (meaning "Who has access" is not "Anyone")
       if (text.includes('accounts.google.com') || text.includes('Sign in') || text.includes('Zaloguj się') || text.includes('ServiceLogin')) {
         return res.json({
           success: false,
