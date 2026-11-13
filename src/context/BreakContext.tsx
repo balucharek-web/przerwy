@@ -278,9 +278,10 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setPowerOffWarning(null);
   };
 
-  // Auto-flush offline webhook queue when connection is restored
+  // Auto-flush offline webhook queue when connection is restored or app returns to foreground
   useEffect(() => {
     const handleOnline = async () => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
       const delivered = await flushOfflineWebhookQueue();
       if (delivered > 0) {
         setLastWebhookStatus({
@@ -290,11 +291,19 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        handleOnline();
+      }
+    };
+
     window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibility);
     handleOnline();
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
@@ -874,6 +883,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       webhookUrl: webhookToUse,
       userName: settings.googleChatUserName || 'Pracownik',
       action: 'start',
+      breakId: newBreak.id,
       totalUsedSecondsToday: todayCompletedSeconds,
       dailyAllowanceSeconds: allowanceSeconds,
       simpleChatMessages: settings.simpleChatMessages,
@@ -951,6 +961,7 @@ export const BreakProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       webhookUrl: webhookToUse,
       userName: settings.googleChatUserName || 'Pracownik',
       action: 'stop',
+      breakId: completed.id,
       currentBreakDurationSeconds: duration,
       totalUsedSecondsToday: newTotalToday,
       dailyAllowanceSeconds: allowanceSeconds,
